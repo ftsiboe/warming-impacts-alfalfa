@@ -31,6 +31,24 @@ stnames <- as.data.frame(vect(file.path(study_environment$usaPolygons_archive,"U
 stnames$state_code <- as.numeric(as.character(stnames$STATEFP))
 stnames$State.Name <- stnames$NAME
 stnames$State.Abbreviation <- stnames$STUSPS
+
+#-------------------------------
+# Preferred window (data-driven) ####
+# Highest in-sample R-squared among the candidate windows (5-10 months) that produced
+# valid degree-day knots in 003 (i.e. appear in optimal_knots.rds for hay_alfalfa).
+# Every "preferred spec" exhibit below filters to `preferred_period` rather than a
+# hard-coded window, so the figures track this determination automatically.
+.knots_all      <- as.data.frame(readRDS("output/optimal_knots.rds"))
+.valid_periods  <- unique(.knots_all$target_periods[.knots_all$crop %in% "hay_alfalfa"])
+.r2             <- as.data.frame(readRDS("output/summary/summary_piecewise.rds"))
+.r2             <- dplyr::inner_join(.r2, as.data.frame(readRDS("output/optimal_gw.rds"))[1, ])
+.r2             <- .r2[.r2$crop %in% "hay_alfalfa" & .r2$climate_base %in% "1991_2020" &
+                         .r2$name %in% "r.squared", ]
+preferred_period <- select_preferred_period(.r2$period, .r2$Estimate, .valid_periods, 105:110)
+preferred_months <- preferred_period - 100
+preferred_lab    <- paste0(preferred_months, " months**")
+rm(.knots_all, .valid_periods, .r2)
+
 Keep.List<-c("Keep.List",ls())
 #-------------------------------
 # Spatial Rep                ####
@@ -155,7 +173,7 @@ Tmin <- knots$Tmin[1]
 Tmax <- knots$Tmax[1]
 
 data <- build_hay_weather_panel(
-  crop = "hay_alfalfa", target_periods = 107,   # 7-month preferred window (Table 1 & Figure 1)
+  crop = "hay_alfalfa", target_periods = preferred_period,   # data-driven preferred window (Table 1 & Figure 1)
   prism_weather_directory = "data/prism_weather")
 data <- as.data.frame(data)
 data$DD1 <- data[,paste0("dday00")] - data[,paste0("dday",stringr::str_pad(Tmin,pad="0",2))]
@@ -340,23 +358,28 @@ Result$x <- Result$Temp
 Xlab <- unique(Result[c("x","Temp")])
 Xlab <- Xlab[Xlab$Temp %in% seq(1,45,5),]
 
-colors <- c("Step Function" = "#FF00FF", "5 months**" = "purple",
-            "95% confidence interval for **" = "thistle")
+colors <- c("Step Function" = "#FF00FF", "95% confidence interval for **" = "thistle")
+colors[preferred_lab] <- "purple"
 
 
-Result$months <- as.numeric(as.character(factor(Result$period,levels = c(105,c(107,106,108:112,0)),labels = 1:9)))
-Result$months <- factor(Result$months,levels = 1:9,labels = c("5 months**",paste0(c(6:8:12)," months"),"all months"))
+# Label each window; the preferred window carries the "**" emphasis, the rest are plain.
+Result$months <- ifelse(Result$period %in% 0, "all months",
+                 ifelse(Result$period %in% preferred_period, preferred_lab,
+                        paste0(Result$period - 100, " months")))
+.oth <- sort(unique(Result$period[!Result$period %in% c(0, preferred_period)]))
+Result$months <- factor(Result$months,
+                        levels = c(preferred_lab, paste0(.oth - 100, " months"), "all months"))
 Result <- Result[!Result$months %in% NA,]
 write.csv(Result,"output/exhibits/figure_data/Nonlinear_Relation.csv")
 
 fig.a <- ggplot(data=Result,aes(x=x, y=Piece,group=period)) +
   geom_hline(yintercept = 0,size = 0.2,color = "black") +
-  geom_ribbon(data=Result[Result$period %in% 105,], aes(x=x, ymin = (Piece-1.96*PieceSE) ,ymax = (Piece+1.96*PieceSE),
+  geom_ribbon(data=Result[Result$period %in% preferred_period,], aes(x=x, ymin = (Piece-1.96*PieceSE) ,ymax = (Piece+1.96*PieceSE),
                                fill="95% confidence interval for **"),color="white") +
-  geom_line(data=Result[Result$period %in% 105,],aes(x=x,y=Piece,color="5 months**"),size = 0.8,linetype="solid")  +
-  geom_line(data=Result[!Result$period %in% 105,],aes(x=x,y=Piece,color=months),size = 0.8,linetype="aa",alpha=0.5)  +
+  geom_line(data=Result[Result$period %in% preferred_period,],aes(x=x,y=Piece,color=preferred_lab),size = 0.8,linetype="solid")  +
+  geom_line(data=Result[!Result$period %in% preferred_period,],aes(x=x,y=Piece,color=months),size = 0.8,linetype="aa",alpha=0.5)  +
   labs(title="",x = "", y = "log-yield (Mt/ha)\n",fill ="",color ="growing season weather\naggregation window", caption = "") +
-  scale_color_manual(values = c(colorRampPalette(c("yellow","darkgreen"))(length(unique(Result[!Result$period %in% 105,"months"]))),"purple")) +
+  scale_color_manual(values = c(colorRampPalette(c("yellow","darkgreen"))(length(unique(Result[!Result$period %in% preferred_period,"months"]))),"purple")) +
   scale_fill_manual(values = colors) +
   scale_x_continuous(breaks=Xlab$x, labels=Xlab$Temp) +
   scale_y_continuous(breaks=seq(-0.20,0.20,0.005), labels=sprintf(seq(-0.20,0.20,0.005),fmt="%#.3f")) +
@@ -374,7 +397,7 @@ fig.a <- ggplot(data=Result,aes(x=x, y=Piece,group=period)) +
         strip.text = element_text(size = 12),
         strip.background = element_rect(fill = "white", colour = "black", size = 1))
 
-fig.b <- ggplot(Result[Result$period %in% 105,]) +
+fig.b <- ggplot(Result[Result$period %in% preferred_period,]) +
   geom_bar(aes(x=x, y=exp),stat="identity", color = "black", fill = "mediumpurple") +
   #geom_errorbar(aes(x=x,ymin = exp - exp_sd*1.96, ymax = exp + exp_sd*1.96),color = "red") +
   labs(title="",x = "\nTemperature (°C)", y = "",fill ="",color ="", caption = "") +
@@ -412,13 +435,13 @@ data <- data[data$county_code %in% 0,]
 data <- data[data$state_code %in% 0,]
 data <- data[data$region %in% "",]
 
-data_main <- data[(data$crop %in% "hay_alfalfa" & data$period %in% 105 & data$climate_base %in% "1991_2020"),]
+data_main <- data[(data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
 data_main <- dplyr::inner_join(data_main,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 
-data_crop <- data[(data$warming_scenario %in% 1.0 & data$crop %in% c("hay_other","hay_alfalfa") & data$period %in% 105 & data$climate_base %in% "1991_2020"),]
+data_crop <- data[(data$warming_scenario %in% 1.0 & data$crop %in% c("hay_other","hay_alfalfa") & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
 data_crop <- dplyr::inner_join(data_crop,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 
-data_year <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% 105 & data$climate_base %in% c("1991_2020","1981_2010","1971_2000","1961_1990")),]
+data_year <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% c("1991_2020","1981_2010","1971_2000","1961_1990")),]
 data_year <- dplyr::inner_join(data_year,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 
 data_wind <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% c(105:110) & data$climate_base %in% "1991_2020"),]
@@ -488,7 +511,7 @@ data <- as.data.frame(readRDS("output/summary/summary_impact_yield.rds"))
 data$est <- data$Estimate
 data$se  <- data$Estimate_sd
 data <- data[!data$county_code %in% 0,]
-data <- data[(data$crop %in% "hay_alfalfa" & data$period %in% 105 & data$climate_base %in% "1991_2020"),]
+data <- data[(data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
 data <- data[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","warming_scenario","fip","est","se")]
 
 data$SimCat<-factor(data$warming_scenario,levels=unique(data$warming_scenario),
@@ -546,7 +569,7 @@ yield$fip<-as.character(paste0(stringr::str_pad(as.numeric(as.character(yield$st
                                stringr::str_pad(as.numeric(as.character(yield$county_code)), 3, pad = "0")))
 yield <- yield[!yield$state_code %in% 0,]
 yield <- yield[yield$warming_scenario %in% 1.0,]
-yield <- yield[(yield$crop %in% "hay_alfalfa" & yield$period %in% 105 & yield$climate_base %in% "1991_2020"),]
+yield <- yield[(yield$crop %in% "hay_alfalfa" & yield$period %in% preferred_period & yield$climate_base %in% "1991_2020"),]
 yield <- dplyr::inner_join(yield,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 yield <- yield[c("state_code","county_code","fip","impact_yield")]
 data <- yield
@@ -555,14 +578,14 @@ avail <- as.data.frame(readRDS("output/summary/summary_availability.rds"))
 avail$level_avail <- avail$Estimate
 avail <- avail[!avail$fip %in% "0000",]
 avail <- avail[avail$warming_scenario %in% c(0.0),]
-avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% 105 & avail$climate_base %in% "1991_2020"),]
+avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period & avail$climate_base %in% "1991_2020"),]
 avail <- dplyr::inner_join(avail,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 avail <- avail[c("fip","level_avail")]
 data <- dplyr::inner_join(data,avail,by="fip")
 
 res <- as.data.frame(readRDS("output/summary/summary_associations.rds"))
 res <- res[!res$fip %in% "00000",]
-res <- res[(res$crop %in% "hay_alfalfa" & res$period %in% 105 & res$climate_base %in% "1991_2020"),
+res <- res[(res$crop %in% "hay_alfalfa" & res$period %in% preferred_period & res$climate_base %in% "1991_2020"),
            c("p", "theta", "longlat", "DistName", "kernel","fip","name","est")]
 res <- res |> tidyr::spread(name, est)
 res <- dplyr::inner_join(res,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
@@ -574,7 +597,7 @@ avail <- as.data.frame(readRDS("output/summary/summary_availability.rds"))
 avail$impact_avail <- avail$Estimate
 avail <- avail[!avail$fip %in% "0000",]
 avail <- avail[avail$warming_scenario %in% 1.0,]
-avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% 105 & avail$climate_base %in% "1991_2020"),]
+avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period & avail$climate_base %in% "1991_2020"),]
 avail <- dplyr::inner_join(avail,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 avail <- avail[c("fip","impact_avail")]
 data <- dplyr::inner_join(data,avail,by="fip")
@@ -583,7 +606,7 @@ catle <- as.data.frame(readRDS("output/summary/summary_cattle.rds"))
 catle$impact_cattle <- catle$Estimate
 catle <- catle[!catle$fip %in% "0000",]
 catle <- catle[catle$warming_scenario %in% 1.0,]
-catle <- catle[(catle$crop %in% "hay_alfalfa" & catle$period %in% 105 & catle$climate_base %in% "1991_2020"),]
+catle <- catle[(catle$crop %in% "hay_alfalfa" & catle$period %in% preferred_period & catle$climate_base %in% "1991_2020"),]
 catle <- dplyr::inner_join(catle,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 catle <- catle[c("fip","cattleA","cattleB","cattleC")]
 data <- dplyr::inner_join(data,catle,by="fip")
@@ -614,7 +637,7 @@ rm(list= ls()[!(ls() %in% c(Keep.List))])
 optimal_gw <- as.data.frame(readRDS("output/optimal_gw.rds"))
 data <- as.data.frame(readRDS("output/summary/summary_associations.rds"))
 data <- data[!data$fip %in% "00000",]
-data <- data[(data$crop %in% "hay_alfalfa" & data$period %in% 105 & data$climate_base %in% "1991_2020"),]
+data <- data[(data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
 data <- dplyr::inner_join(data,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 #data <- data[data$name %in% c("prod00","prod00_LM"),]
 
@@ -877,7 +900,7 @@ yield$fip<-as.character(paste0(stringr::str_pad(as.numeric(as.character(yield$st
                                stringr::str_pad(as.numeric(as.character(yield$county_code)), 3, pad = "0")))
 yield <- yield[!yield$state_code %in% 0,]
 yield <- yield[yield$warming_scenario %in% 1.0,]
-yield <- yield[(yield$crop %in% "hay_alfalfa" & yield$period %in% 105 & yield$climate_base %in% "1991_2020"),]
+yield <- yield[(yield$crop %in% "hay_alfalfa" & yield$period %in% preferred_period & yield$climate_base %in% "1991_2020"),]
 yield <- dplyr::inner_join(yield,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 yield <- yield[c("state_code","county_code","fip","impact_yield")]
 
@@ -885,7 +908,7 @@ avail <- as.data.frame(readRDS("Results/summary_impact_avail.rds"))
 avail$level_avail <- avail$Estimate
 avail <- avail[!avail$fip %in% "0",]
 avail <- avail[avail$warming_scenario %in% c(0.0),]
-avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% 105 & avail$climate_base %in% "1991_2020"),]
+avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period & avail$climate_base %in% "1991_2020"),]
 avail <- dplyr::inner_join(avail,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 avail <- avail[c("fip","level_avail")]
 data <- dplyr::inner_join(data,avail,by="fip")
@@ -893,7 +916,7 @@ data <- dplyr::inner_join(data,avail,by="fip")
 res <- as.data.frame(readRDS("Results/summary_corr_catle_avail.rds"))
 res$corr_cat <- res$corr_et
 res <- res[!res$fip %in% "0",]
-res <- res[(res$crop %in% "hay_alfalfa" & res$period %in% 105 & res$climate_base %in% "1991_2020"),]
+res <- res[(res$crop %in% "hay_alfalfa" & res$period %in% preferred_period & res$climate_base %in% "1991_2020"),]
 res <- dplyr::inner_join(res,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 res <- res[c("fip","corr_cat")]
 data <- dplyr::inner_join(data,res,by="fip")
@@ -902,7 +925,7 @@ avail <- as.data.frame(readRDS("Results/summary_impact_avail.rds"))
 avail$impact_avail <- avail$Estimate
 avail <- avail[!avail$fip %in% "0",]
 avail <- avail[avail$warming_scenario %in% 1.0,]
-avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% 105 & avail$climate_base %in% "1991_2020"),]
+avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period & avail$climate_base %in% "1991_2020"),]
 avail <- dplyr::inner_join(avail,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 avail <- avail[c("fip","impact_avail")]
 data <- dplyr::inner_join(yield,avail,by="fip")
@@ -911,7 +934,7 @@ catle <- as.data.frame(readRDS("Results/summary_impact_catle.rds"))
 catle$impact_cattle <- catle$Estimate
 catle <- catle[!catle$fip %in% "0",]
 catle <- catle[catle$warming_scenario %in% 1.0,]
-catle <- catle[(catle$crop %in% "hay_alfalfa" & catle$period %in% 105 & catle$climate_base %in% "1991_2020"),]
+catle <- catle[(catle$crop %in% "hay_alfalfa" & catle$period %in% preferred_period & catle$climate_base %in% "1991_2020"),]
 catle <- dplyr::inner_join(catle,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 catle <- catle[c("fip","impact_cattle")]
 data <- dplyr::inner_join(data,catle,by="fip")
@@ -961,7 +984,7 @@ cattle$outcome <- "(c) Cattle inventory"
 
 data <- rbind(avail,yield,cattle)
 
-data <- data[(data$crop %in% "hay_alfalfa" & data$period %in% 105 & data$climate_base %in% "1991_2020"),]
+data <- data[(data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
 
 data$SimCat<-factor(data$warming_scenario,levels=unique(data$warming_scenario),
                     labels = paste0("+",format(unique(data$warming_scenario), nsmall = 1)," °C"))
@@ -1081,22 +1104,22 @@ yield$outcome <- "(a) Alfalfa yield"
 
 # data <- rbind(avail,yield,cattle)
 data <- yield
-data_main <- data[(data$crop %in% "hay_alfalfa" & data$period %in% 105 & data$climate_base %in% "1991_2020"),]
+data_main <- data[(data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
 data_main <- dplyr::inner_join(data_main,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 
-data_crop <- data[(data$warming_scenario %in% 1.0 & data$crop %in% c("hay_other","hay_alfalfa") & data$period %in% 105 & data$climate_base %in% "1991_2020"),]
+data_crop <- data[(data$warming_scenario %in% 1.0 & data$crop %in% c("hay_other","hay_alfalfa") & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
 data_crop <- dplyr::inner_join(data_crop,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 
-data_year <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% 105 & data$climate_base %in% c("1991_2020","1981_2010","1971_2000","1961_1990")),]
+data_year <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% c("1991_2020","1981_2010","1971_2000","1961_1990")),]
 data_year <- dplyr::inner_join(data_year,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 
 data_wind <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% c(105:110) & data$climate_base %in% "1991_2020"),]
 data_wind <- dplyr::inner_join(data_wind,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
 
-data_dist <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% 105 & data$climate_base %in% c("1991_2020") &
+data_dist <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% c("1991_2020") &
                      data$kernel %in% optimal_gw[1,"kernel"]),]
 
-data_kenl <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% 105 & data$climate_base %in% c("1991_2020") &
+data_kenl <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% c("1991_2020") &
                      data$DistName %in% optimal_gw[1,"DistName"]),]
 
 data_main$type <- "Impact by warming scenario"

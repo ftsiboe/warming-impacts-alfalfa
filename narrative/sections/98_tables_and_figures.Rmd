@@ -19,7 +19,7 @@ knitr::kable(objs$summary$tab, row.names = FALSE)
 knitr::kable(objs$coef$tab, row.names = FALSE)
 ```
 
-*Coefficients and standard errors are reported ×1000; the column header "5 months††" marks the preferred window. Significance levels: \* p<0.10, \*\* p<0.05, \*\*\* p<0.01. Standard errors in parentheses, clustered at year level.*
+*Coefficients and standard errors are reported ×1000; the †† in the column header marks the preferred window (`r objs$window_selection$chosen_months` months). Significance levels: \* p<0.10, \*\* p<0.05, \*\*\* p<0.01. Standard errors in parentheses, clustered at year level.*
 
 ## Figures
 

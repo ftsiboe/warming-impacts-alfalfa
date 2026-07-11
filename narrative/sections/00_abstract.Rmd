@@ -7,8 +7,8 @@ The authors gratefully acknowledge the National Agricultural Statistics Service 
 
 # Abstract
 
-<!-- TODO: abstract body was not present as prose in the source docx; add here. -->
+Alfalfa and other hay are the backbone of U.S. livestock feed, yet how warming temperatures reshape their productivity and geography remains poorly quantified. Using an unbalanced county-level panel of `r fmt_num(objs$summary$n_counties, 0)` counties spanning 1951–2022, built by merging USDA NASS alfalfa and hay production and livestock inventory data with PRISM daily weather, we estimate a piecewise-linear degree-day yield-response model with endogenous temperature thresholds at `r fmt_degC(objs$knots$lower)` and `r fmt_degC(objs$knots$upper)` (preferred `r objs$window_selection$chosen_months`-month growing-season window, R² = `r fmt_num(objs$summary$rsq, 3)`). Yields rise with beneficial heat but fall sharply once exposure exceeds `r fmt_degC(objs$knots$upper)`, where each additional harmful degree-day carries a significant negative effect (`r fmt_num(objs$relation$DD3$estimate, 4)``r objs$relation$DD3$stars`). Simulating uniform warming relative to the 1991–2020 baseline, a +1°C increase lowers average U.S. alfalfa yields by `r fmt_abs_pct(objs$impact$s10)`, with declines deepening to `r fmt_abs_pct(objs$impact$s30)` under +3.0°C. Impacts are highly heterogeneous: cooler counties in the Northeast and upper Midwest see modest gains, while already-hot southern and arid-western counties face the steepest losses. Because the sharpest declines fall on livestock-dense regions, projected warming threatens to widen the mismatch between forage supply and feed demand across the contiguous United States.
 
-**Keywords:** <!-- TODO: populate -->
+**Keywords:** alfalfa, hay, forage, climate change, warming, degree days, crop yields, geographic shifts, livestock feed, PRISM
 
 **JEL:** Q54, Q24

@@ -1,0 +1,29 @@
+# Normalize line endings: store text as LF in the repo (fixes mixed CRLF/LF
+# across the scripts, e.g. 002_*.R), let git handle the working-copy checkout.
+* text=auto eol=lf
+
+# Explicit text types
+*.R      text eol=lf
+*.Rmd    text eol=lf
+*.Rproj  text eol=lf
+*.sbatch text eol=lf
+*.md     text eol=lf
+*.bib    text eol=lf
+*.json   text eol=lf
+*.csv    text eol=lf
+
+# Binary (never diffed or line-ending–munged)
+*.rds    binary
+*.rda    binary
+*.RData  binary
+*.docx   binary
+*.doc    binary
+*.xlsx   binary
+*.pdf    binary
+*.png    binary
+*.jpg    binary
+*.zip    binary
+
+# GitHub linguist: don't let generated/data files skew language stats
+narrative/article_objects.json linguist-generated=true
+*.csv                          linguist-generated=true

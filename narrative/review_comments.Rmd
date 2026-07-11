@@ -1,0 +1,121 @@
+---
+title: "Review Comments — Temperature Induced Yield Impacts and Geographic Shifts in US Alfalfa Production"
+subtitle: "Tracked from v02_warming_effects_alfalfa_wd.docx for resolution after the reorganization"
+output: html_document
+---
+
+This file tracks all reviewer comments extracted from the source manuscript
+(`narrative/v02_warming_effects_alfalfa_wd.docx`, latest draft, 10 comments).
+Each entry records the reviewer, date, the passage the comment was anchored to,
+the original comment, the section file it now lives in after the reorg, and a
+**proposed fix expressed in terms of the new project layout**. Nothing here is
+implemented yet — this is a to-do list to work through once the reorganization
+is settled.
+
+A recurring theme (C1, C2, C5, C8, C9, C10) is that hard-coded warming-impact
+percentages in the manuscript should instead be pulled programmatically from the
+summary outputs so numbers stay consistent with the figures. The canonical source
+is `output/summary/summary_impact_yield.rds`, produced by
+`scripts/006_WarmingImpactsAlfalfa_summary.R` and visualized as
+`output/exhibits/spatial_impact_yield.png` (Figure 5).
+
+---
+
+## Results §4.2 — warming-impact magnitudes
+
+### C1 — Walker Davis (2026-05-27)
+
+- **Anchor:** "A 0.5°C increase boosts yield in some northern states, but substantial decreases occur in southern states such as Alabama, Arizona, and Florida, with Florida facing a 2.77% drop…"
+- **Comment:** "These numbers most likely need to be updated and I do not see where these are pulled from. Just visually you could say. Looking at figure 5, that under 3 degree increase puts the majority of the central and southeast US at a decrease of over 22%."
+- **Now in:** `narrative/sections/04_results.Rmd` (§4.2)
+- **Proposed fix:** Replace the manually typed state percentages with values read from `output/summary/summary_impact_yield.rds`, filtered to the relevant warming scenario. Add an inline note citing the source object so provenance is visible. Cross-check against Figure 5 (`output/exhibits/spatial_impact_yield.png`). Regenerate via `scripts/006_WarmingImpactsAlfalfa_summary.R` → `scripts/100_WarmingImpactsAlfalfa_exhibits.R`.
+
+### C2 — Walker Davis (2026-07-10)
+
+- **Anchor:** same passage as C1.
+- **Comment:** "Will pull from Spatial Impact Yield"
+- **Now in:** `narrative/sections/04_results.Rmd` (§4.2)
+- **Proposed fix:** Confirms the source for C1 — wire these numbers to `summary_impact_yield` (`output/summary/summary_impact_yield.rds`). Resolve C1 and C2 together.
+
+### C5 — Walker Davis (2026-05-27)
+
+- **Anchor:** "0.621, 2.988, 4.673, 6.53, and 8.57% for a +0.5, +1.5, +2.0, +2.5, and +3.0°C"
+- **Comment:** "Update needed"
+- **Now in:** `narrative/sections/04_results.Rmd` (§4.2)
+- **Proposed fix:** Pull the national mean decline for each scenario from `output/summary/summary_impact_yield.rds` (national aggregation) rather than typing them. Verify the +1.0°C value (6.576%) reported earlier in the same paragraph is drawn from the same object so the series is internally consistent.
+
+---
+
+## Data §2 — production identity
+
+### C3 — Walker Davis (2026-05-26)
+
+- **Anchor:** "Arizona (20.02, 154.68, 6.23),"
+- **Comment:** "I may be misunderstanding, but I am reading this as the area * Yield per acre should equal the production, but it doesn't."
+- **Now in:** `narrative/sections/02_data.Rmd`
+- **Proposed fix:** The triples are (area [1000 acres], production [1000 tons], yield [tons/acre]); area × yield ≠ production because each statistic is an independent county-level mean over 2002–2022, not a single-year identity. Either (a) add a footnote stating each figure is an independent multi-year mean, or (b) recompute production as area × yield for internal consistency. Trace the aggregation in `scripts/helpers/build_hay_weather_panel.R` and `scripts/001_WarmingImpactsAlfalfa_data_nass.R`; validate against `output/summary/summary_availability.rds`.
+
+### C4 — Walker Davis (2026-07-10)
+
+- **Anchor:** "Arizona (20.02, 154.68, 6.23),"
+- **Comment:** "Dr. Tsiboe will look into."
+- **Now in:** `narrative/sections/02_data.Rmd`
+- **Proposed fix:** Owner note tied to C3 — action item for FT. Resolve with C3.
+
+---
+
+## Discussion §5 — Figure 5 magnitudes
+
+### C8 — Walker Davis (2026-07-10)
+
+- **Anchor:** "As shown in Figure 5, a +1°C increase alone produces yield declines of 13.088% and 10.810% in Texas and Florida, respectively."
+- **Comment:** "Needs spatial impact yield."
+- **Now in:** `narrative/sections/05_discussion.Rmd`
+- **Proposed fix:** Source the Texas/Florida +1°C figures from `output/summary/summary_impact_yield.rds` (state rollup) so they match Figure 5 and §4.2 exactly. Avoid restating literals in prose — reference a single computed object.
+
+---
+
+## Conclusion §6 — unresolved placeholders
+
+### C9 — Walker Davis (2026-05-27)
+
+- **Anchor:** "XXX% under +0.5°C and rise to XXX%"
+- **Comment:** "Will need values for this"
+- **Now in:** `narrative/sections/08_conclusion.Rmd`
+- **Proposed fix:** Fill the two `XXX%` placeholders from `output/summary/summary_impact_yield.rds` — the +0.5°C and +3.0°C national means (should equal 0.621% and 8.57% from §4.2). These remain literal blanks in the current draft.
+
+### C10 — Walker Davis (2026-07-10)
+
+- **Anchor:** "States such as Texas, Florida, Oklahoma, and Kansas experience respective losses of 13.088%, 10.810%, 8.682%, and 6.011% at just a 1°C increase in temperature,"
+- **Comment:** "Needs spatial impact yield."
+- **Now in:** `narrative/sections/08_conclusion.Rmd`
+- **Proposed fix:** Same as C8 — draw the four state losses from `output/summary/summary_impact_yield.rds`. Note the Oklahoma value (8.682%) matches §4.2 but the Kansas value here (6.011%) differs from §4.2's Kansas framing ("over 6%"); reconcile against the summary object.
+
+---
+
+## References — missing citations
+
+### C6 — Francis Tsiboe (2024-08-02)
+
+- **Anchor:** "IPCC, 1994" (cited in §4.2 re: baseline periods)
+- **Comment / full reference:** "IPCC, 1994: IPCC Technical Guidelines for Assessing Climate Change Impacts and Adaptations. Prepared by Working Group II [Carter, T.R., M.L. Parry, H. Harasawa, and S. Nishioka] and WMO/UNEP. CGER-IO15-'94. University College London, UK and Center for Global Environmental Research, National Institute for Environmental Studies, Tsukuba, Japan, 59 pp."
+- **Now in:** `narrative/sections/97_references.Rmd` (in-text ref in `04_results.Rmd`)
+- **Proposed fix:** Add this as a formal reference. Recommend creating `narrative/references.bib`, adding an `@techreport{ipcc1994,...}` entry, and converting the in-text "(IPCC, 1994)" to a `@ipcc1994` citation.
+
+### C7 — Francis Tsiboe (2024-08-02)
+
+- **Anchor:** "Karl et al., 1996" (cited in §4.2)
+- **Comment / full reference:** "Karl, T.R., R.W. Knight, D.R. Easterling, and R.G. Quayle, 1996: Indices of climate change for the United States. Bull. Am. Met. Soc., 77, 279-292. https://journals.ametsoc.org/view/journals/bams/77/2/1520-0477_1996_077_0279_ioccft_2_0_co_2.xml"
+- **Now in:** `narrative/sections/97_references.Rmd` (in-text ref in `04_results.Rmd`)
+- **Proposed fix:** Add as a formal reference (`@article{karl1996,...}` in `narrative/references.bib`) and convert the in-text mention to `@karl1996`.
+
+---
+
+## Cross-cutting recommendation
+
+Six of the ten comments (C1, C2, C5, C8, C9, C10) reduce to one structural fix:
+stop hard-coding warming-impact percentages in the section `.Rmd` files and instead
+compute them inline from `output/summary/summary_impact_yield.rds`. Doing this once —
+e.g. a small helper in `scripts/helpers/` that loads the summary and exposes named
+values — resolves all six and prevents future drift between the prose, the tables,
+and Figure 5.

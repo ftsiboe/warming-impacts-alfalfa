@@ -1,0 +1,14 @@
+<!-- Auto-split from the source manuscript in narrative/: v02_warming_effects_alfalfa_wd.docx.
+     Prose is verbatim; equations/tables/figures are placeholders keyed to output/. -->
+
+# Acknowledgment
+
+The authors gratefully acknowledge the National Agricultural Statistics Service (NASS), PRISM Climate Group, Professor Wolfram Schlenker, and the Natural Resources Conservation Service (NRCS) for the dataset used for the study. The authors are also grateful for data processing on Beocat Research Cluster at Kansas State University. The views expressed in this publication are solely those of the authors and do not reflect the official positions or policies of their affiliated institutions.
+
+# Abstract
+
+<!-- TODO: abstract body was not present as prose in the source docx; add here. -->
+
+**Keywords:** <!-- TODO: populate -->
+
+**JEL:** Q54, Q24

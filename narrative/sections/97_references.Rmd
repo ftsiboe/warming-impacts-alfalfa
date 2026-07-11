@@ -1,0 +1,63 @@
+# References
+
+<!-- Numbered references extracted verbatim from the source docx. Recommend migrating
+     to a BibTeX file (narrative/references.bib) and citing with @key; see
+     review_comments.Rmd (C6/C7) for the two additional citations to add. -->
+
+[1] Intergovernmental Panel on Climate Change (IPCC), Climate Change 2007: Impacts, Adaptation and Vulnerability. Contribution of Working Group II to the Fourth Assessment Report of the Intergovernmental Panel on Climate Change. Cambridge: Cambridge University Press, 2007.
+
+[2] Intergovernmental Panel on Climate Change (IPCC), Climate Change 2013 the Physical Science Basis: Working Group I Contribution to the Fifth Assessment Report of the Intergovernmental Panel on Climate Change. Cambridge: Cambridge University Press, 2013. doi: 10.1017/CBO9781107415324.
+
+[3] D. B. Lobell, W. Schlenker, and J. Costa-Roberts, "Climate Trends and Global Crop Production Since 1980," Science, vol. 333, no. 6042, pp. 616–620, Jul. 2011, doi: 10.1126/science.1204531.
+
+[4] X. Yuan et al., "Impacts of Global Climate Change on Agricultural Production: A Comprehensive Review," Agronomy, vol. 14, no. 7, p. 1360, Jul. 2024, doi: 10.3390/agronomy14071360.
+
+[5] C. Lesk, P. Rowhani, and N. Ramankutty, "Influence of extreme weather disasters on global crop production," Nature, vol. 529, no. 7584, pp. 84–87, Jan. 2016, doi: 10.1038/nature16467.
+
+[6] X. Liu, W. Liu, Q. Tang, B. Liu, Y. Wada, and H. Yang, "Global Agricultural Water Scarcity Assessment Incorporating Blue and Green Water Availability Under Future Climate Change," 2022, doi: 10.1029/2021EF002567.
+
+[7] W. Schlenker and M. J. Roberts, "Nonlinear temperature effects indicate severe damages to U.S. crop yields under climate change," Proc. Natl. Acad. Sci. U. S. A., vol. 106, no. 37, pp. 15594–15598, 2009, doi: 10.1073/pnas.0906865106.
+
+[8] J. Tack, A. Barkley, and L. L. Nalley, "Effect of warming temperatures on US wheat yields," Proc. Natl. Acad. Sci., vol. 112, no. 22, pp. 6931–6936, Jun. 2015, doi: 10.1073/pnas.1415181112.
+
+[9] P. Zhang, J. Zhang, and M. Chen, "Economic impacts of climate change on agriculture: The importance of additional climatic variables other than temperature and precipitation," J. Environ. Econ. Manag., vol. 83, pp. 8–31, May 2017, doi: 10.1016/j.jeem.2016.12.001.
+
+[10] A. M. Shew, J. B. Tack, L. L. Nalley, and P. Chaminuka, "Yield reduction under climate warming varies among wheat cultivars in South Africa," Nat. Commun., vol. 11, no. 1, p. 4408, Dec. 2020, doi: 10.1038/s41467-020-18317-8.
+
+[11] E. Malikov, R. Miao, and J. Zhang, "Distributional and temporal heterogeneity in the climate change effects on U.S. agriculture," J. Environ. Econ. Manag., vol. 104, p. 102386, Nov. 2020, doi: 10.1016/j.jeem.2020.102386.
+
+[12] M. Gauly et al., "Future consequences and challenges for dairy cow production systems arising from climate change in Central Europe – a review," Animal, vol. 7, no. 5, pp. 843–859, 2013, doi: 10.1017/S1751731112002352.
+
+[13] N. Kemper, A. Flanders, B. Watkins, and M. Popp, "Impact of the 2012 Drought on Field Crops and Cattle Production in Arkansas - Preliminary Report," Department of Agriculture, Research and Extension, University of Arkansas System.
+
+[14] A. Mottet, C. de Haan, A. Falcucci, G. Tempio, C. Opio, and P. Gerber, "Livestock: On our plates or eating at our table? A new analysis of the feed/food debate," Glob. Food Secur., vol. 14, pp. 1–8, Sep. 2017, doi: 10.1016/j.gfs.2017.01.001.
+
+[15] W. M. Simmons and R. L. Rizek, "Performance of the Livestock-Feed-Grain Sector," J. Farm Econ., vol. 48, no. 5, p. 1455, Dec. 1966, doi: 10.2307/1237161.
+
+[16] J. M. Marsh, "Cross-sector relationships between the corn feed grains and livestock and poultry economies," J. Agric. Resour. Econ., vol. 32, no. 1, pp. 93–114, 2007.
+
+[17] United States Department of Agriculture [USDA], "USDA - National Agricultural Statistics Service, Quick Stats 2.0." Accessed: May 05, 2019. [Online]. Available: http://quickstats.nass.usda.gov/
+
+[18] C. M. Ahlberg et al., "Environmental effects on water intake and water intake prediction in growing beef cattle," J. Anim. Sci., vol. 96, no. 10, pp. 4368–4384, Sep. 2018, doi: 10.1093/jas/sky267.
+
+[19] L. Chen, V. M. Thorup, A. B. Kudahl, and S. Østergaard, "Effects of heat stress on feed intake, milk yield, milk composition, and feed efficiency in dairy cows: A meta-analysis," J. Dairy Sci., vol. 107, no. 5, pp. 3207–3218, May 2024, doi: 10.3168/jds.2023-24059.
+
+[20] A. Summer, I. Lora, P. Formaggioni, and F. Gottardo, "Impact of heat stress on milk and meat production," Anim. Front., vol. 9, no. 1, pp. 39–46, Jan. 2019, doi: 10.1093/af/vfy026.
+
+[21] D. Wolfenson and Z. Roth, "Impact of heat stress on cow reproduction and fertility," Anim. Front., vol. 9, no. 1, pp. 32–38, Jan. 2019, doi: 10.1093/af/vfy027.
+
+[22] Q. Xie et al., "Satellite-observed shifts in C3/C4 abundance in Australian grasslands are associated with rainfall patterns," Remote Sens. Environ., vol. 273, p. 112983, May 2022, doi: 10.1016/j.rse.2022.112983.
+
+[23] W. Schlenker and M. J. Roberts, "Nonlinear temperature effects indicate severe damages to U.S. crop yields under climate change," Proc. Natl. Acad. Sci., vol. 106, no. 37, pp. 15594–15598, Sep. 2009, doi: 10.1073/pnas.0906865106.
+
+[24] E. Malikov, R. Miao, and J. Zhang, "Distributional and temporal heterogeneity in the climate change effects on U.S. agriculture," J. Environ. Econ. Manag., vol. 104, p. 102386, Nov. 2020, doi: 10.1016/j.jeem.2020.102386.
+
+[25] A. M. Shew, J. B. Tack, L. L. Nalley, and P. Chaminuka, "Yield reduction under climate warming varies among wheat cultivars in South Africa," Nat. Commun., vol. 11, no. 1, p. 4408, Sep. 2020, doi: 10.1038/s41467-020-18317-8.
+
+[26] USDA National Agricultural Statistics Service, "CropScape - Cropland Data Layer (2019 release)." [Online]. Available: https://nassgeodata.gmu.edu/CropScape/
+
+[27] M. A. Petersen, "Estimating Standard Errors in Finance Panel Data Sets: Comparing Approaches," Rev. Financ. Stud., vol. 22, no. 1, pp. 435–480, Jan. 2009, doi: 10.1093/rfs/hhn053.
+
+[28] A. C. Cameron, J. B. Gelbach, and D. L. Miller, "Robust Inference With Multiway Clustering," J. Bus. Econ. Stat., vol. 29, no. 2, pp. 238–249, Apr. 2011, doi: 10.1198/jbes.2010.07136.
+
+[29] N. R. St-Pierre, B. Cobanov, and G. Schnitkey, "Economic Losses from Heat Stress by US Livestock Industries," J. Dairy Sci., vol. 86, pp. E52–E77, Jun. 2003, doi: 10.3168/jds.S0022-0302(03)74040-5.

@@ -1,0 +1,28 @@
+# 3. Methods
+
+The study makes use of the large variation present in the assembled dataset to identify parameters of interest by applying models of climate change effects on crop yields proposed in the literature [@schlenker2009; @tack2015; @shew2020]. The model assumes a cumulative effect of temperature on seasonal alfalfa yields, and that yield is proportional to cumulative exposure. The implication is that the effect of temperature on the growth rates of alfalfa yields is the same and additively substitutable during the growing season. [@schlenker2009] provides the empirical validity of this assumption, where they specify that yield growth depends nonlinearly on heat (h) such that log yield for county i and year t is
+
+<!-- EQUATION (1) — LaTeX not recovered from source docx. Reconstruct. -->
+$$
+\tag{1}
+$$
+
+Where the term is the time distribution of h over the growing season for county i and year t. The observed temperatures during the growing season range between a lower and upper bound. The vector contains other control factors, including quadratic function of cumulative precipitation to capture the nonlinear effects of rainfall, quadratic time trend by state to capture state-specific technological change, and county fixed effect to control for cross-sectional heterogeneity. Finally, the error term captures any remaining unobserved heterogeneity and is assumed to be heteroskedastic.
+
+Following related works [@schlenker2009], Equation (1) is approximated with the piecewise linear degree-day approach, which is like the concept of growing degree-days where alfalfa yield growth increases linearly up to an endogenous temperature threshold (i.e., the optimal temperature) and then decreases linearly for every 1°C increase above that threshold. The specification for the degree-day model is given by:
+
+<!-- EQUATION (2) — LaTeX not recovered from source docx. Reconstruct. -->
+$$
+\tag{2}
+$$
+
+The three temperature variables capture respectively degree days between zero and the lower threshold, the lower threshold and the upper threshold, and above the upper threshold. Essentially, these variables admit a piecewise linear relation between temperature and log yield over three ranges of temperatures defined endogenously by the placement of cut points (thresholds). The temperature thresholds are endogenously determined by looping over all threshold-pairs between 0-39°C, estimate the least-squares segment slopes for each pair, and then pick the threshold and segment slopes that have the best model fit in terms of R-squared. This looping produced lower and upper temperature thresholds at 14°C and 29°C, respectively. Finally, we cluster the standard errors at year level to account for possible spatial correlations as done in related works [@petersen2009; @cameron2011].
+
+The Representative Concentration Pathway (RCP) trajectory adopted by the Intergovernmental Panel on Climate Change (IPCC) for its fifth Assessment Report (AR5) in 2014 suggests global warming increase projections that range from 0.4 to 4.8°C [@ipcc2013]. This study considers warming scenarios of 0.5 to 3°C in 0.5 increments to ascertain the respective changes in alfalfa yields. The predictions for each scenario were obtained via a three-step process. First, each daily temperature observation for the periods and location in the dataset was increased by the respective warming scenario. For instance, daily min and max temperatures of -15 and 18 °C recorded on say July 8, 1986, were changed to (-15 + k) and (18 + k) °C for the case of the k°C warming scenario, respectively. Using these new temperatures, the study then calculates the associated degree-days. Finally, given the estimates from the piecewise linear degree-day approach, the predicted percentage change in alfalfa yield following an k°C increase in temperature is estimated as
+
+<!-- EQUATION (3) — LaTeX not recovered from source docx. Reconstruct. -->
+$$
+\tag{3}
+$$
+
+We estimated yield shocks for each county based on specified warming scenarios.

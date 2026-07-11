@@ -1,0 +1,54 @@
+---
+title: "Temperature-Induced Yield Impacts and Geographic Shifts in US Alfalfa Production"
+date: "`r format(Sys.Date(), '%B %Y')`"
+output:
+  word_document:
+    reference_docx: reference.docx
+    toc: false
+    number_sections: false
+    fig_caption: true
+  html_document:
+    toc: false
+    number_sections: false
+    df_print: kable
+bibliography: references.bib
+link-citations: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      fig.width = 7.5, fig.height = 4.5, dpi = 150)
+# Pre-calculated article values (no hard-coded results). Regenerate with
+# scripts/301_article_objects.R (via scripts/run_article.R). Inline references use
+# objs$... throughout the section children. Figures are pre-rendered into
+# ../output/exhibits/ by scripts/100_WarmingImpactsAlfalfa_exhibits.R.
+objs <- jsonlite::fromJSON("article_objects.json")
+```
+
+```{r abstract, child = "sections/00_abstract.Rmd"}
+```
+
+```{r introduction, child = "sections/01_introduction.Rmd"}
+```
+
+```{r data, child = "sections/02_data.Rmd"}
+```
+
+```{r methods, child = "sections/03_methods.Rmd"}
+```
+
+```{r results, child = "sections/04_results.Rmd"}
+```
+
+```{r discussion, child = "sections/05_discussion.Rmd"}
+```
+
+```{r conclusion, child = "sections/08_conclusion.Rmd"}
+```
+
+# References
+
+<div id="refs"></div>
+
+```{r tables-and-figures, child = "sections/98_tables_and_figures.Rmd"}
+```

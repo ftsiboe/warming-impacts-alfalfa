@@ -1,5 +1,5 @@
-<!-- Auto-split from the source manuscript in narrative/: v02_warming_effects_alfalfa_wd.docx.
-     Prose is verbatim; equations/tables/figures are placeholders keyed to output/. -->
+<!-- Prose auto-split verbatim from the source manuscript; equations/tables/figures
+     are placeholders keyed to objs$... and output/exhibits/. -->
 
 # Acknowledgment
 

@@ -1,4 +1,12 @@
+---
+output: github_document
+---
+
 <!-- README.md is generated from README.Rmd. Please edit that file, then knit. -->
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
 
 # Temperature-Induced Yield Impacts and Geographic Shifts in US Alfalfa Production
 

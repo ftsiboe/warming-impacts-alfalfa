@@ -5,19 +5,20 @@ output: html_document
 ---
 
 This file tracks all reviewer comments extracted from the source manuscript
-(`narrative/v02_warming_effects_alfalfa_wd.docx`, latest draft, 10 comments).
-Each entry records the reviewer, date, the passage the comment was anchored to,
-the original comment, the section file it now lives in after the reorg, and a
-**proposed fix expressed in terms of the new project layout**. Nothing here is
-implemented yet — this is a to-do list to work through once the reorganization
-is settled.
+(latest draft, 10 comments). Each entry records the reviewer, date, the anchored
+passage, the original comment, the section file it now lives in, the proposed fix,
+and its current **Status**.
 
-A recurring theme (C1, C2, C5, C8, C9, C10) is that hard-coded warming-impact
-percentages in the manuscript should instead be pulled programmatically from the
-summary outputs so numbers stay consistent with the figures. The canonical source
-is `output/summary/summary_impact_yield.rds`, produced by
-`scripts/006_WarmingImpactsAlfalfa_summary.R` and visualized as
-`output/exhibits/spatial_impact_yield.png` (Figure 5).
+**Status summary (10 of 10 addressed):**
+
+- **C1, C2, C5, C8, C9, C10** — ✅ RESOLVED. The hard-coded warming-impact numbers
+  are now computed inline from `output/summary/summary_impact_yield.rds` via the
+  `objs$impact` (national series) and `objs$impact_state` (state rollup) objects built
+  in `scripts/301_article_objects.R`, so the prose, tables, and Figure 5 cannot drift.
+- **C3, C4** — ✅ RESOLVED. A footnote in `02_data.Rmd` explains the per-state triples
+  are independent county-level means (area × yield need not equal production).
+- **C6, C7** — ✅ RESOLVED. IPCC 1994 and Karl et al. 1996 are formal `references.bib`
+  entries, cited in `04_results.Rmd` as `@ipcc1994` and `@karl1996`.
 
 ---
 

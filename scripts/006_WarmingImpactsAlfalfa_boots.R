@@ -7,7 +7,11 @@ invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = T
 # devtools::document(file.path(dirname(dirname(getwd())),"packages/rAgroClimate"))
 
 # gwkit (sibling package) is the canonical GW toolkit for this project.
-devtools::load_all(file.path(dirname(dirname(getwd())),"packages/gwkit"))
+if(grepl("windows", sysname)){
+  devtools::load_all(file.path(dirname(dirname(getwd())),"packages/gwkit"))
+}else{
+  devtools::load_all(file.path(dirname(getwd()),"packages/gwkit"))
+}
 set.seed(08032024)
 
 # ==============================================================================

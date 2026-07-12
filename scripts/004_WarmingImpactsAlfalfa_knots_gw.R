@@ -15,14 +15,31 @@ rm(list=ls(all=TRUE));gc();library(magrittr);library(future.apply);library(tidyv
 library(plm);library(terra);library(GWmodel);library(sp);library(sf)
 study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))
-devtools::load_all(file.path(dirname(dirname(getwd())),"packages/gwkit"))
+if(grepl("windows", sysname)){
+  devtools::load_all(file.path(dirname(dirname(getwd())),"packages/gwkit"))
+}else{
+  devtools::load_all(file.path(dirname(getwd()),"packages/gwkit"))
+}
+
 set.seed(08032024)
 
 #-----------------------------------------------
 # Configuration                              ####
-knot_band   <- 5              # county knots searched within +/- this of national
-main_crop   <- "hay_alfalfa"
-main_period <- 107            # main analysis window (matches CELLS[1] in 006)
+knot_band         <- 5        # county knots searched within +/- this of national
+main_crop         <- "hay_alfalfa"
+candidate_periods <- 105:110  # eligible accumulation windows (5-10 months)
+
+# Main analysis window: data-driven, not hard-coded. Among the candidate windows
+# that produced valid knots in 003, pick the one with the highest in-sample R^2 -
+# the same rule (select_preferred_period) used elsewhere in the pipeline.
+.nk_all     <- as.data.frame(readRDS("output/optimal_knots.rds"))
+.nk_all     <- .nk_all[.nk_all$crop %in% main_crop, ]
+main_period <- select_preferred_period(
+  r2_period         = .nk_all$target_periods,
+  r2_value          = .nk_all$R,
+  valid_periods     = unique(.nk_all$target_periods),
+  candidate_periods = candidate_periods)
+message("Preferred window (data-driven): period ", main_period)
 
 # NOTE: the knot SEARCH absorbs the county fixed effect (demeaning) and keeps
 # ppt/ppt2 controls, but omits the state-specific time trends for tractability

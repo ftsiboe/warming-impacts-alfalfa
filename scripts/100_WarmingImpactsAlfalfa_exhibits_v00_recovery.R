@@ -16,7 +16,11 @@
 rm(list=ls(all=TRUE))
 library(ggplot2);library(terra);library(ggridges);library(gridExtra);library(gtable);library(data.table)
 if(Sys.info()['sysname'] =="Windows"){library(gganimate);library(magick)}
-devtools::load_all(file.path(dirname(dirname(getwd())), "packages", "gwkit"))
+if(grepl("windows", sysname)){
+  devtools::load_all(file.path(dirname(dirname(getwd())),"packages/gwkit"))
+}else{
+  devtools::load_all(file.path(dirname(getwd()),"packages/gwkit"))
+}
 study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))
 myTheme <-   ers_theme() +
@@ -270,8 +274,13 @@ ggsave("output/exhibits/v00_recovery/availability_cattle.png", Fig, dpi = 600,wi
 # expected an Estimate column on cattle (the current object stores cattleA/B/C; the
 # availability channel cattleA is used here).
 rm(list = ls()[!(ls() %in% c(Keep.List))])
-if (requireNamespace("gwkit", quietly = TRUE)) library(gwkit) else
-  devtools::load_all(file.path(dirname(dirname(getwd())), "packages", "gwkit"))
+if (requireNamespace("gwkit", quietly = TRUE)) {
+  library(gwkit)
+} else if (grepl("windows", sysname)) {
+  devtools::load_all(file.path(dirname(dirname(getwd())),"packages/gwkit"))
+} else {
+  devtools::load_all(file.path(dirname(getwd()),"packages/gwkit"))
+}
 
 .scen <- c(0.5, 1.0, 1.5, 2.0, 2.5, 3.0)
 

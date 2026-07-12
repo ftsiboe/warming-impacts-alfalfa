@@ -22,7 +22,11 @@ study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))
 
 # --- load gwkit (sibling package under ../packages/gwkit) ---------------------
-devtools::load_all(file.path(dirname(dirname(getwd())), "packages", "gwkit"))
+if(grepl("windows", sysname)){
+  devtools::load_all(file.path(dirname(dirname(getwd())),"packages/gwkit"))
+}else{
+  devtools::load_all(file.path(dirname(getwd()),"packages/gwkit"))
+}
 
 dir.create("output/exhibits/v00_recovery", recursive = TRUE, showWarnings = FALSE)
 dir.create("output/exhibits/figure_data",  recursive = TRUE, showWarnings = FALSE)

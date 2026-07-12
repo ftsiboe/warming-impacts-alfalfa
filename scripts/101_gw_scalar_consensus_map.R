@@ -5,7 +5,7 @@
 # The article currently reduces its 20 geographically-weighted specifications
 # (4 distance metrics x 5 kernels) to results by simply picking the first,
 # optimal_gw[1,]. Here we instead form a per-county CONSENSUS across all 20
-# specs with gwkit::gw_optimal_scalar_by_polygon(), for one continuous GW
+# specs with gwkit::gw_consensus_scalar(), for one continuous GW
 # outcome: the responsiveness of cattle inventory to alfalfa availability
 # (the "avail00" coefficient in summary_associations).
 #
@@ -68,10 +68,10 @@ message("specs per county (summary): ",
         "  (expected up to 20)")
 
 # --- consensus across specs, per county (median; equal weights) ---------------
-consensus <- gw_optimal_scalar_by_polygon(
+consensus <- gw_consensus_scalar(
   value_dt     = assoc,
   unit_col     = "fip",
-  polygons     = Counties,
+  geometry     = Counties,
   value_col    = "est",
   agg_fun      = stats::median,   # user-suppliable reducer
   probs        = c(0.05, 0.95),
@@ -99,7 +99,7 @@ Fig <- ggplot() +
   labs(title = "Responsiveness of cattle inventory to alfalfa availability",
        subtitle = paste0("Per-county median consensus across all 20 GW specs ",
                          "(4 distance metrics x 5 kernels)"),
-       x = "", y = "", caption = "gwkit::gw_optimal_scalar_by_polygon()") +
+       x = "", y = "", caption = "gwkit::gw_consensus_scalar()") +
   ers_theme() + theme_bw() +
   theme(panel.grid = element_blank(),
         axis.text = element_blank(), axis.ticks = element_blank(),

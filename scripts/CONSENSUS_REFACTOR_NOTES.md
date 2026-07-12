@@ -18,7 +18,7 @@ gwkit is now the canonical GW engine:
 | Distance grid (10 presets) | `gw_distance_metric_names()` |
 | Availability m(zᵢ) — neighbour-weighted, self-excluded, multi-column | `estimate_gwlag_by_point()` **(new)** |
 | Associations `cattle~avail00` and `cattle~prod00+prod00_LM` | `estimate_gwr_coefficients_by_point()` **(new)** |
-| Across-spec consensus diagnostic | `gw_optimal_scalar_by_polygon()` |
+| Across-spec consensus diagnostic | `gw_consensus_scalar()` |
 
 Removed: the `optimal_gw` cross-validation pick and `output/optimal_gw.rds`
 (consensus replaces the single-spec choice).

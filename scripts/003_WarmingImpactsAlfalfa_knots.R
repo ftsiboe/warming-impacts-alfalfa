@@ -31,7 +31,7 @@ lapply(
       crop   <- ARRAY$crop[task]
 
       data <- build_hay_weather_panel(
-        crop = "hay_alfalfa",
+        crop = crop,
         target_periods = target_periods,
         prism_weather_directory = "data/prism_weather")
 
@@ -191,7 +191,7 @@ function(){
   OptknotsP <- OptknotsP[OptknotsP$DD3 <0,]
   # OptknotsP <- OptknotsP[( OptknotsP$DD1 <= OptknotsP$DD2),]
 
-  OptknotsP <- OptknotsP |> group_by(crop,target_periods) |> mutate(cv_error_min = max(cv_error,na.rm=T)) |> as.data.frame(.)
+  OptknotsP <- OptknotsP |> group_by(crop,target_periods) |> mutate(cv_error_min = min(cv_error,na.rm=T)) |> as.data.frame(.)
   OptknotsP <- OptknotsP[round(OptknotsP$cv_error,6) == round(OptknotsP$cv_error_min,6),]
 
   OptknotsP <- OptknotsP |> group_by(crop,target_periods) |> mutate(R_max = max(R,na.rm=T)) |> as.data.frame(.)

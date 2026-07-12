@@ -28,11 +28,11 @@ set.seed(08032024)
 #
 # gwkit tools used:
 #   gw_distance_metric_names()               -> the 10 distance presets
-#   estimate_gwlag_by_point()                -> availability m(z_i) (neighbour-
+#   estimate_gwlag()                         -> availability m(z_i) (neighbour-
 #                                               weighted, self-excluded, multi-col)
-#   estimate_gwr_coefficients_by_point()     -> cattle~avail00 and
+#   estimate_gwr()                           -> cattle~avail00 and
 #                                               cattle~prod00+prod00_LM (GWR)
-#   gw_optimal_scalar_by_polygon()           -> across-spec consensus diagnostics
+#   gw_optimal_scalar()           -> across-spec consensus diagnostics
 #
 # The optimal_gw cross-validation pick is REMOVED (consensus replaces it).
 # Bandwidths are precomputed once per (cell x spec) on the full sample and cached
@@ -257,9 +257,9 @@ estimate_cell_gw <- function(base, spec, bw = NULL){
 
     # --- Availability: neighbour-weighted (self-excluded) production, gwkit ---
     src <- sp_data[, c("fip","longitude","latitude", PROD_COLS)]
-    lag <- gwkit::estimate_gwlag_by_point(
+    lag <- gwkit::estimate_gwlag(
       data = src, unit = "fip", value_cols = PROD_COLS,
-      coords = c("longitude","latitude"), predict_data = centroids,
+      coords = c("longitude","latitude"), predict = centroids,
       distance_metric = spec$distance_metric, kernel = spec$kernel,
       adaptive = FALSE, bw = bw, bw_response = "prod00", include_self = FALSE)
     if(is.null(bw)) bw <- attr(lag, "bandwidth")
@@ -292,19 +292,20 @@ estimate_cell_gw <- function(base, spec, bw = NULL){
               lprod00_LM = log(prod00_LM + 1e-9))]
     aj <- as.data.frame(aj)
 
-    b1 <- gwkit::estimate_gwr_coefficients_by_point(
+    b1 <- gwkit::estimate_gwr(
       aj, unit = "fip", formula = lcattle ~ lavail00,
-      coords = c("longitude","latitude"), predict_data = centroids,
+      coords = c("longitude","latitude"), predict = centroids,
       distance_metric = spec$distance_metric, kernel = spec$kernel,
       adaptive = TRUE, bw = bw, terms = "lavail00")
-    b2 <- gwkit::estimate_gwr_coefficients_by_point(
+    b2 <- gwkit::estimate_gwr(
       aj, unit = "fip", formula = lcattle ~ lprod00 + lprod00_LM,
-      coords = c("longitude","latitude"), predict_data = centroids,
+      coords = c("longitude","latitude"), predict = centroids,
       distance_metric = spec$distance_metric, kernel = spec$kernel,
       adaptive = TRUE, bw = bw, terms = c("lprod00","lprod00_LM"))
     assoc <- data.table::rbindlist(list(b1, b2), fill = TRUE)
+    assoc <- assoc[estimand %in% "mean"]
     assoc[, name := c(lavail00="avail00", lprod00="prod00", lprod00_LM="prod00_LM")[term]]
-    associations <- assoc[, .(fip = unit_id, name, est, se, tv, pv)]
+    associations <- assoc[, .(fip = unit_id, name, est = estimate, se, tv, pv)]
 
     # national (unweighted) global fits
     g1 <- summary(lm(lcattle ~ lavail00, data = aj))$coef["lavail00", ]
@@ -358,12 +359,12 @@ reduce_consensus <- function(base, spec_list, cell, boot, Counties = NULL){
 
   # gwkit consensus diagnostic on the headline coefficient (county rows)
   gwkit_avail00 <- NULL
-  if(!is.null(Counties) && exists("gw_optimal_scalar_by_polygon")){
+  if(!is.null(Counties) && exists("gw_optimal_scalar")){
     tryCatch({
       st <- as_[name %in% "avail00" & !fip %in% c("0","00000") & is.finite(est)]
       if(nrow(st) > 0)
-        gwkit_avail00 <- as.data.frame(gw_optimal_scalar_by_polygon(
-          value_dt = st, unit_col = "fip", polygons = Counties,
+        gwkit_avail00 <- as.data.frame(gw_optimal_scalar(
+          value_dt = st, unit_col = "fip", geometry = Counties,
           value_col = "est", agg_fun = stats::median, queen_smooth = FALSE))
     }, error = function(e){})
   }

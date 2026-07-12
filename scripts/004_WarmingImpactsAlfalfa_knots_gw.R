@@ -109,15 +109,16 @@ fit_pair <- function(tmin, tmax, spec, bw){
   d[, DD1 := pmax(get("dday00")        - get(paste0("dday", pad(tmin))), 0)]
   d[, DD2 := pmax(get(paste0("dday", pad(tmin))) - get(paste0("dday", pad(tmax))), 0)]
   d[, DD3 := pmax(get(paste0("dday", pad(tmax))), 0)]
-  out <- tryCatch(estimate_gwfe_coefficients_by_polygon(
-    data = d, unit = "fip", polygons = Counties,
+  out <- tryCatch(estimate_gwr(
+    data = d, unit = "fip", geometry = Counties,
     formula = lny ~ DD1 + DD2 + DD3 + ppt + ppt2,
     panel = "fip", time = "commodity_year",
     distance_metric = spec$distance_metric, kernel = spec$kernel,
-    adaptive = TRUE, bw = bw, terms = c("DD1","DD2","DD3")), error = function(e) NULL)
+    adaptive = TRUE, bw = bw, fit_stats = TRUE,
+    terms = c("DD1","DD2","DD3")), error = function(e) NULL)
   if(is.null(out)) return(NULL)
   attr_bw <<- attr(out, "bandwidth")
-  w <- data.table::dcast(out, unit_id + r_squared ~ term, value.var = "est")
+  w <- data.table::dcast(out[estimand == "mean"], unit_id + r_squared ~ term, value.var = "estimate")
   # validity: beneficial-then-harmful sign pattern
   w <- w[is.finite(DD1) & is.finite(DD2) & is.finite(DD3) &
            DD1 >= 0 & DD2 > 0 & DD3 < 0]

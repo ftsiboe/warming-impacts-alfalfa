@@ -120,7 +120,7 @@ downloaded_nass_large_datasets(
 
 data <- data.table::rbindlist(
   lapply(
-    c("qs.census2022.txt.gz","qs.census2017.txt.gz","qs.census2007.txt.gz","qs.census2002.txt.gz"),
+    c("qs.census2022.txt.gz","qs.census2017.txt.gz","qs.census2012.txt.gz","qs.census2007.txt.gz","qs.census2002.txt.gz"),
     function(xx){
       tryCatch({
         # xx <- "qs.census2022.txt.gz"

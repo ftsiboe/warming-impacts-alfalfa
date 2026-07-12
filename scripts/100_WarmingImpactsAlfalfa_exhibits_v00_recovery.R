@@ -85,9 +85,9 @@ assoc <- assoc[is.finite(assoc$est), ]
 
 # one consensus surface per coefficient (avail00 / prod00 / prod00_LM), then stack
 cons <- do.call(rbind, lapply(c("avail00", "prod00", "prod00_LM"), function(nm) {
-  cn <- as.data.frame(gw_optimal_scalar_by_polygon(
+  cn <- as.data.frame(gw_consensus_scalar(
     value_dt = assoc[assoc$name %in% nm, ], unit_col = "fip",
-    polygons = Counties, value_col = "est", agg_fun = stats::median,
+    geometry = Counties, value_col = "est", agg_fun = stats::median,
     queen_smooth = FALSE))
   cn$name <- nm
   cn
@@ -154,8 +154,8 @@ avail <- avail[!avail$fip %in% c("0","00000"), ]
 avail$est <- avail$Estimate
 avail <- avail[is.finite(avail$est), ]
 
-avail_cons <- as.data.frame(gw_optimal_scalar_by_polygon(
-  value_dt = avail, unit_col = "fip", polygons = Counties,
+avail_cons <- as.data.frame(gw_consensus_scalar(
+  value_dt = avail, unit_col = "fip", geometry = Counties,
   value_col = "est", agg_fun = stats::median, queen_smooth = FALSE))
 
 sf_object <- sf::st_as_sf(terra::merge(Counties, avail_cons, by = "fip"))
@@ -212,8 +212,8 @@ corr_cat <- corr_cat[!corr_cat$fip %in% c("0","00000"),]
 corr_cat <- corr_cat[is.finite(corr_cat$est), ]
 
 # 20-spec consensus of the responsiveness coefficient via gwkit.
-corr_cons <- as.data.frame(gw_optimal_scalar_by_polygon(
-  value_dt = corr_cat, unit_col = "fip", polygons = Counties,
+corr_cons <- as.data.frame(gw_consensus_scalar(
+  value_dt = corr_cat, unit_col = "fip", geometry = Counties,
   value_col = "est", agg_fun = stats::median, queen_smooth = FALSE))
 
 sf_object <- sf::st_as_sf(terra::merge(Counties, corr_cons, by = "fip"))
@@ -295,8 +295,8 @@ if (requireNamespace("gwkit", quietly = TRUE)) {
   do.call(rbind, lapply(.scen, function(sc) {
     ds <- d[d$warming_scenario %in% sc, ]
     if (nrow(ds) == 0) return(NULL)
-    cn <- as.data.frame(gw_optimal_scalar_by_polygon(
-      ds, unit_col = "fip", polygons = Counties, value_col = "est",
+    cn <- as.data.frame(gw_consensus_scalar(
+      ds, unit_col = "fip", geometry = Counties, value_col = "est",
       agg_fun = stats::median, queen_smooth = FALSE))
     data.frame(fip = cn$fip, warming_scenario = sc, est = cn$consensus,
                outcome = outcome, stringsAsFactors = FALSE)

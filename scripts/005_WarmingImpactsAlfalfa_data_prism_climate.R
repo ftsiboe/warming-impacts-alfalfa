@@ -12,6 +12,49 @@ rm(list=ls(all=TRUE));library(future.apply);library(data.table);library(terra)
 
 study_environment <- readRDS("data/study_environment.rds")
 
+#-----------------------------------------------
+# Rerun check                                ####
+# Stage 2 (prism_climate2) trims data/prism_climate to the degree-day columns
+# implied by the knots. If the knots have changed since those files were last
+# written (national 003, or county-level 004 optimal_knots_gw), the trim is stale
+# and stage 2 must be re-run. This block only REPORTS status - it changes nothing.
+# NOTE: climate dday columns are written unpadded (paste0("dday", Tmin)); the
+# +/-band search can introduce single-digit thresholds, so the check accepts
+# either "dday5" or "dday05".
+local({
+  tryCatch({
+    req <- 0L
+    if (file.exists("output/optimal_knots.rds")) {
+      nk <- as.data.frame(readRDS("output/optimal_knots.rds"))
+      req <- c(req, as.integer(nk$Tmin), as.integer(nk$Tmax))
+    }
+    if (file.exists("output/optimal_knots_gw.rds")) {
+      gk <- as.data.frame(readRDS("output/optimal_knots_gw.rds"))
+      req <- c(req, as.integer(gk$Tmin), as.integer(gk$Tmax))
+    }
+    req <- sort(unique(req[is.finite(req) & req >= 0]))
+
+    files <- list.files("data/prism_climate", pattern = "[.]rds$", full.names = TRUE)
+    if (length(req) == 0) {
+      message(">>> 005 rerun check: no knot files found - run 003 (and 004) first.")
+    } else if (length(files) == 0) {
+      message(">>> RERUN 005: data/prism_climate is empty - run stage 1 (prism_climate1) then stage 2 (prism_climate2).")
+    } else {
+      have <- names(readRDS(files[1]))
+      have_thr <- suppressWarnings(as.integer(gsub("dday", "", grep("^dday[0-9]+$", have, value = TRUE))))
+      missing <- setdiff(req, have_thr)
+      if (length(missing) > 0) {
+        message(">>> RERUN 005 stage 2 (prism_climate2): data/prism_climate is missing dday thresholds: ",
+                paste0("dday", missing, collapse = ", "),
+                "  (knots changed since it was last written).")
+      } else {
+        message("005 rerun check: data/prism_climate already carries every knot threshold (",
+                paste0("dday", req, collapse = ", "), ") - no rerun needed.")
+      }
+    }
+  }, error = function(e) message("005 rerun check skipped: ", conditionMessage(e)))
+})
+
 devtools::document(file.path(dirname(dirname(getwd())),"packages/rAgroClimate"))
 
 prism_list <- data.frame(file=list.files(study_environment$prism_archive, recursive = TRUE, full.names = TRUE))

@@ -17,25 +17,30 @@ study_environment <- setup_environment(
   ),
   fastscratch_directories = NULL)
 
-# Project-local fast-scratch working directories. All pipeline intermediates live here
-# (kept out of git/Dropbox via .gitignore); the final consolidated panels still land in
-# data/ and results in output/.
+
+sysname <- tolower(as.character(Sys.info()[["sysname"]]))
+user    <- Sys.info()[["user"]]
+
+# Fast-scratch working directories
+
+if(grepl("windows", sysname)){
+  fastscratch_directory <- "fastscratch"
+}else{
+  fastscratch_directory <- file.path("/fastscratch", user,"warming-impacts-alfalfa")
+}
+
 study_environment$wd <- list(
-  prism_weather = file.path("fastscratch","prism_weather"),
-  prism_climate = file.path("fastscratch","prism_climate"),
-  knots         = file.path("fastscratch","knots"),
-  boots         = file.path("fastscratch","boots"),
-  summary       = file.path("fastscratch","summary")
+  prism_weather = file.path(fastscratch_directory,"prism_weather"),
+  prism_climate = file.path(fastscratch_directory,"prism_climate"),
+  knots         = file.path(fastscratch_directory,"knots"),
+  boots         = file.path(fastscratch_directory,"boots"),
+  summary       = file.path(fastscratch_directory,"summary")
 )
+
 invisible(lapply(study_environment$wd, dir.create, recursive = TRUE, showWarnings = FALSE))
 
 temporary_dir <- tempdir()
 
-sysname <- tolower(as.character(Sys.info()[["sysname"]]))
-user    <- Sys.info()[["user"]]
-
-sysname <- tolower(as.character(Sys.info()[["sysname"]]))
-user    <- Sys.info()[["user"]]
 
 if(grepl("TSIB",toupper(user))){
   if(grepl("windows", sysname)){

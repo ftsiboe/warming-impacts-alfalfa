@@ -8,7 +8,6 @@
 #   output/summary/summary_impact_yield.rds   national + county yield-shock means
 #   output/summary/summary_piecewise.rds      piecewise degree-day coefficients
 #   data/spatial_representation.rds            county cattle/alfalfa panel (correlations)
-#   output/optimal_gw.rds                      preferred geographically-weighted spec
 #   output/exhibits/figure_data/table1.csv     summary statistics (Table 1)
 #   output/exhibits/figure_data/spatial_Rep.csv state production/inventory means
 #   output/exhibits/figure_data/regression_coefficients.csv  (Table 2)
@@ -27,12 +26,11 @@ rd_csv <- function(f) utils::read.csv(file.path(FIGDATA, f), check.names = FALSE
                                       stringsAsFactors = FALSE)
 rd_rds <- function(f) as.data.table(readRDS(file.path(SUMMARY, f)))
 
-## --- Preferred geographically-weighted specification -----------------------
-# The bootstrapped summaries contain a grid of GW bandwidths (p, theta, ...). Keep only
-# the optimal one so the article reports a single specification, matching the figures.
-gw   <- as.data.table(readRDS(file.path(OUTPUT, "optimal_gw.rds")))
-gwk  <- intersect(c("p","theta","longlat","DistName","kernel"), names(gw))
-keep_gw <- function(dt) dt[gw[, ..gwk], on = gwk, nomatch = 0]
+## --- Consensus specification (no per-spec filtering) -----------------------
+# 005/006 already reduce the 50 GW specs to a per-county CONSENSUS, so the summary
+# tables carry no p/theta/longlat/DistName/kernel columns. keep_gw() is therefore an
+# identity pass-through (the former optimal_gw single-spec pick was removed).
+keep_gw <- function(dt) dt
 
 ## --- Data-driven preferred window + endogenous thresholds ------------------
 # Preferred weather-accumulation window: the window (5-10 months) with the highest
@@ -84,8 +82,8 @@ if (!window_selection$robust_to_cv)
        call. = FALSE)
 
 ## --- Yield-shock impacts (summary_impact_yield.rds) ------------------------
-# Columns: p,theta,longlat,DistName,kernel,crop,period,specN,climate_base,region,
-#   state_code,county_code,fip,warming_scenario,Estimate,Estimate_mean,Estimate_sd,...
+# Columns: crop,period,climate_base,region,state_code,county_code,fip,
+#   warming_scenario,Estimate,Estimate_mean,Estimate_sd,... (consensus - no spec cols).
 # Estimate is the point (boot "0000") percentage change in yield; national row has
 # county_code == 0 (fip "00000"). warming_scenario in {0.5,1.0,1.5,2.0,2.5,3.0}.
 iy <- keep_gw(rd_rds("summary_impact_yield.rds"))

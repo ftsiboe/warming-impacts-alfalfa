@@ -18,9 +18,10 @@ study_environment <- readRDS("data/study_environment.rds")
 # implied by the knots. If the knots have changed since those files were last
 # written (national 003, or county-level 004 optimal_knots_gw), the trim is stale
 # and stage 2 must be re-run. This block only REPORTS status - it changes nothing.
-# NOTE: climate dday columns are written unpadded (paste0("dday", Tmin)); the
-# +/-band search can introduce single-digit thresholds, so the check accepts
-# either "dday5" or "dday05".
+# NOTE: climate dday columns are written zero-padded to two digits
+# (aggregate_weather_variables -> "dday00".."dday45"); the +/-band search can
+# introduce single-digit thresholds, so any column lookup must pad likewise.
+# The check below compares thresholds as INTEGERS, so it is padding-agnostic.
 local({
   tryCatch({
     req <- 0L
@@ -55,7 +56,10 @@ local({
   }, error = function(e) message("005 rerun check skipped: ", conditionMessage(e)))
 })
 
-devtools::document(file.path(dirname(dirname(getwd())),"packages/rAgroClimate"))
+# Load rAgroClimate (sibling package) READ-ONLY. Do NOT devtools::document() here:
+# with a large SLURM array every task would regenerate the shared package man/ +
+# NAMESPACE concurrently (race/corruption) and it is slow. Document once, offline.
+devtools::load_all(file.path(dirname(dirname(getwd())),"packages/rAgroClimate"), quiet = TRUE)
 
 prism_list <- data.frame(file=list.files(study_environment$prism_archive, recursive = TRUE, full.names = TRUE))
 prism_list$date <- as.Date(gsub("prism_daily_all_4km_","",basename(prism_list$file)),format = "%Y%m%d")
@@ -243,6 +247,15 @@ if(Sys.getenv("SLURM_JOB_NAME") %in% "prism_climate1") {
 if(Sys.getenv("SLURM_JOB_NAME") %in% "prism_climate2") {
 
   optimal_knots <- readRDS("output/optimal_knots.rds")
+  # Retain every dday threshold implied by BOTH the national knots (003) and the
+  # county-level GW knots (004, optimal_knots_gw), so 006 can build county-specific
+  # DD. County knots search national +/- knot_band, so this is the union over the band.
+  knot_thr <- unique(c(optimal_knots$Tmin, optimal_knots$Tmax))
+  if (file.exists("output/optimal_knots_gw.rds")) {
+    gwk <- as.data.frame(readRDS("output/optimal_knots_gw.rds"))
+    knot_thr <- unique(c(knot_thr, gwk$Tmin, gwk$Tmax))
+  }
+  knot_thr <- sort(knot_thr[is.finite(knot_thr) & knot_thr >= 0])
 
   dir.create(file.path("data/prism_climate"))
 
@@ -265,7 +278,7 @@ if(Sys.getenv("SLURM_JOB_NAME") %in% "prism_climate2") {
 
         df <- df[
           ,c("commodity_year","state_code", "county_fips", "period","warming_scenario","dday00",
-             paste0("dday",unique(c(unique(optimal_knots$Tmin),unique(optimal_knots$Tmax))))),
+             paste0("dday", stringr::str_pad(knot_thr, 2, pad = "0"))),
           with = FALSE
         ]
 

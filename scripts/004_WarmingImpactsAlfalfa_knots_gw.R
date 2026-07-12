@@ -15,11 +15,32 @@ rm(list=ls(all=TRUE));gc();library(magrittr);library(future.apply);library(tidyv
 library(plm);library(terra);library(GWmodel);library(sp);library(sf)
 study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))
-if(grepl("windows", sysname)){
-  devtools::load_all(file.path(dirname(dirname(getwd())),"packages/gwkit"))
-}else{
-  devtools::load_all(file.path(dirname(getwd()),"packages/gwkit"))
+sysname   <- tolower(as.character(Sys.info()[["sysname"]]))
+gwkit_src <- if (grepl("windows", sysname)) {
+  file.path(dirname(dirname(getwd())), "packages/gwkit")
+} else {
+  file.path(dirname(getwd()), "gwkit")
 }
+
+# INSTALL the local gwkit so parallel WORKERS load the same version as the main
+# session. devtools::load_all() injects gwkit into this process only; multisession
+# workers fall back to the installed copy (multicore/fork DOES inherit load_all, so
+# on the cluster this is belt-and-braces). Install when gwkit is missing, older than
+# the source, OR predates the consensus refactor (dev version may be unchanged, so
+# also probe the API). For a SLURM array, install gwkit ONCE before submitting so
+# all tasks find it current and skip this (avoids a concurrent-install race).
+.src_ver  <- tryCatch(as.package_version(read.dcf(file.path(gwkit_src, "DESCRIPTION"))[, "Version"]),
+                      error = function(e) NULL)
+.inst_ver <- tryCatch(utils::packageVersion("gwkit"), error = function(e) NULL)
+.has_api  <- tryCatch(
+  "gw_consensus_scalar" %in% getNamespaceExports("gwkit") &&
+    "terms" %in% names(formals(getExportedValue("gwkit", "estimate_gwr"))),
+  error = function(e) FALSE)
+if (is.null(.inst_ver) || (!is.null(.src_ver) && .inst_ver < .src_ver) || !.has_api) {
+  message("Installing local gwkit from ", gwkit_src, " ...")
+  devtools::install(gwkit_src, upgrade = FALSE, quick = TRUE, quiet = TRUE)
+}
+library(gwkit)
 
 set.seed(08032024)
 
@@ -45,10 +66,7 @@ message("Preferred window (data-driven): period ", main_period)
 # ppt/ppt2 controls, but omits the state-specific time trends for tractability
 # (a 100-column local WLS x 40 pairs x 50 specs x 2,500 counties is infeasible).
 # R^2-based knot selection is driven by the degree-day fit; the state trends are
-# restored in the SLOPE stage (006 GWFE block). Set absorb_trends = TRUE to
-# globally partial out the trends before the search if strict consistency is
-# preferred.
-absorb_trends <- FALSE
+# restored in the SLOPE stage (006 GWFE block).
 
 #-----------------------------------------------
 # National anchor knot (from 003)            ####

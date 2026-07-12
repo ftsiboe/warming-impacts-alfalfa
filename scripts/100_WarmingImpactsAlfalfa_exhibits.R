@@ -5,6 +5,12 @@ library(ggplot2);library(terra);library(ggridges);library(gridExtra);library(gta
 if(Sys.info()['sysname'] =="Windows"){library(gganimate);library(magick)}
 study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))
+sysname <- tolower(as.character(Sys.info()[["sysname"]]))
+if(grepl("windows", sysname)){
+  devtools::load_all(file.path(dirname(dirname(getwd())),"packages/gwkit"))
+}else{
+  devtools::load_all(file.path(dirname(getwd()),"packages/gwkit"))
+}
 myTheme <-   ers_theme() +
   theme(plot.title= element_text(size=10.5),
         axis.title= element_text(size=9,color="black"),
@@ -41,7 +47,7 @@ stnames$State.Abbreviation <- stnames$STUSPS
 .knots_all      <- as.data.frame(readRDS("output/optimal_knots.rds"))
 .valid_periods  <- unique(.knots_all$target_periods[.knots_all$crop %in% "hay_alfalfa"])
 .r2             <- as.data.frame(readRDS("output/summary/summary_piecewise.rds"))
-.r2             <- dplyr::inner_join(.r2, as.data.frame(readRDS("output/optimal_gw.rds"))[1, ])
+.r2 <- .r2
 .r2             <- .r2[.r2$crop %in% "hay_alfalfa" & .r2$climate_base %in% "1991_2020" &
                          .r2$name %in% "r.squared", ]
 preferred_period <- select_preferred_period(.r2$period, .r2$Estimate, .valid_periods, 105:110)
@@ -324,9 +330,8 @@ write.csv(table1,"output/exhibits/figure_data/table1.csv")
 #-------------------------------
 # Regression coefficients    ####
 rm(list= ls()[!(ls() %in% c(Keep.List))])
-optimal_gw <- as.data.frame(readRDS("output/optimal_gw.rds"))
 res <- as.data.frame(readRDS("output/summary/summary_piecewise.rds"))
-res <- dplyr::inner_join(res,optimal_gw[1,])
+res <- res
 res <- res[res$crop %in% "hay_alfalfa",]
 res <- res[res$climate_base %in% "1991_2020",]
 res <- res[res$period %in% c(0,104:112),c("name","period","Estimate","StdError","t_value","p_value")]
@@ -336,15 +341,14 @@ write.csv(res,"output/exhibits/figure_data/regression_coefficients.csv")
 #-------------------------------
 # Nonlinear Relation         ####
 rm(list= ls()[!(ls() %in% c(Keep.List))])
-optimal_gw <- as.data.frame(readRDS("output/optimal_gw.rds"))
 relation <- as.data.frame(readRDS("output/summary/summary_relation.rds"))
-relation <- dplyr::inner_join(relation,optimal_gw[1,])
+relation <- relation
 relation <- relation[relation$crop %in% "hay_alfalfa",]
 relation <- relation[relation$climate_base %in% "1991_2020",]
 relation <- relation[relation$period %in% c(105:110),c("crop","period","Temp","Piece","PieceSE")]
 
 exposure <- as.data.frame(readRDS("output/summary/summary_exposure.rds"))
-exposure <- dplyr::inner_join(exposure,optimal_gw[1,])
+exposure <- exposure
 exposure <- exposure[exposure$crop %in% "hay_alfalfa",]
 exposure <- exposure[exposure$climate_base %in% "1991_2020",]
 exposure <- exposure[exposure$period %in% c(105:110),c("crop","period","Temp","exp","exp_sd")]
@@ -427,7 +431,6 @@ ggsave("output/exhibits/Nonlinear_Relation.png", fig, dpi = 600,width = 6.7, hei
 #-------------------------------
 # Impacts mean               ####
 rm(list= ls()[!(ls() %in% c(Keep.List))])
-optimal_gw <- as.data.frame(readRDS("output/optimal_gw.rds"))
 data <- as.data.frame(readRDS("output/summary/summary_impact_yield.rds"))
 data$est <- data$Estimate
 data$se  <- data$Estimate_sd
@@ -436,16 +439,16 @@ data <- data[data$state_code %in% 0,]
 data <- data[data$region %in% "",]
 
 data_main <- data[(data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
-data_main <- dplyr::inner_join(data_main,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
+data_main <- data_main
 
 data_crop <- data[(data$warming_scenario %in% 1.0 & data$crop %in% c("hay_other","hay_alfalfa") & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
-data_crop <- dplyr::inner_join(data_crop,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
+data_crop <- data_crop
 
 data_year <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% c("1991_2020","1981_2010","1971_2000","1961_1990")),]
-data_year <- dplyr::inner_join(data_year,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
+data_year <- data_year
 
 data_wind <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% c(105:110) & data$climate_base %in% "1991_2020"),]
-data_wind <- dplyr::inner_join(data_wind,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
+data_wind <- data_wind
 
 data_main$type <- "Impact by warming scenario"
 data_year$type <- "1+°C warming by climate baseline"
@@ -506,7 +509,6 @@ ggsave("output/exhibits/impacts_mean.png", Fig04, dpi = 600,width = 6.7, height 
 #-------------------------------
 # Impacts Spatial            ####
 rm(list= ls()[!(ls() %in% c(Keep.List))])
-optimal_gw <- as.data.frame(readRDS("output/optimal_gw.rds"))
 data <- as.data.frame(readRDS("output/summary/summary_impact_yield.rds"))
 data$est <- data$Estimate
 data$se  <- data$Estimate_sd
@@ -561,7 +563,6 @@ ggsave(paste0("output/exhibits/spatial_impact_yield.png"), Fig, dpi = 600,width 
 #-------------------------------
 # Regional estimates         ####
 rm(list= ls()[!(ls() %in% c(Keep.List))]);gc()
-optimal_gw <- as.data.frame(readRDS("output/optimal_gw.rds"))
 
 yield <- as.data.frame(readRDS("output/summary/summary_impact_yield.rds"))
 yield$impact_yield <- yield$Estimate
@@ -570,7 +571,7 @@ yield$fip<-as.character(paste0(stringr::str_pad(as.numeric(as.character(yield$st
 yield <- yield[!yield$state_code %in% 0,]
 yield <- yield[yield$warming_scenario %in% 1.0,]
 yield <- yield[(yield$crop %in% "hay_alfalfa" & yield$period %in% preferred_period & yield$climate_base %in% "1991_2020"),]
-yield <- dplyr::inner_join(yield,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
+yield <- yield
 yield <- yield[c("state_code","county_code","fip","impact_yield")]
 data <- yield
 
@@ -579,7 +580,7 @@ avail$level_avail <- avail$Estimate
 avail <- avail[!avail$fip %in% "0000",]
 avail <- avail[avail$warming_scenario %in% c(0.0),]
 avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period & avail$climate_base %in% "1991_2020"),]
-avail <- dplyr::inner_join(avail,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
+avail <- avail
 avail <- avail[c("fip","level_avail")]
 data <- dplyr::inner_join(data,avail,by="fip")
 
@@ -588,7 +589,7 @@ res <- res[!res$fip %in% "00000",]
 res <- res[(res$crop %in% "hay_alfalfa" & res$period %in% preferred_period & res$climate_base %in% "1991_2020"),
            c("p", "theta", "longlat", "DistName", "kernel","fip","name","est")]
 res <- res |> tidyr::spread(name, est)
-res <- dplyr::inner_join(res,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
+res <- res
 res <- res[c("fip","avail00","prod00","prod00_LM")]
 names(res) <- c("fip","b_avail00","b_prod00","b_prod00_LM")
 data <- dplyr::inner_join(data,res,by="fip")
@@ -598,7 +599,7 @@ avail$impact_avail <- avail$Estimate
 avail <- avail[!avail$fip %in% "0000",]
 avail <- avail[avail$warming_scenario %in% 1.0,]
 avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period & avail$climate_base %in% "1991_2020"),]
-avail <- dplyr::inner_join(avail,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
+avail <- avail
 avail <- avail[c("fip","impact_avail")]
 data <- dplyr::inner_join(data,avail,by="fip")
 
@@ -607,7 +608,7 @@ catle$impact_cattle <- catle$Estimate
 catle <- catle[!catle$fip %in% "0000",]
 catle <- catle[catle$warming_scenario %in% 1.0,]
 catle <- catle[(catle$crop %in% "hay_alfalfa" & catle$period %in% preferred_period & catle$climate_base %in% "1991_2020"),]
-catle <- dplyr::inner_join(catle,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
+catle <- catle
 catle <- catle[c("fip","cattleA","cattleB","cattleC")]
 data <- dplyr::inner_join(data,catle,by="fip")
 
@@ -626,166 +627,109 @@ data$region <- ifelse(
   data$State.Abbreviation %in% c("AZ", "CA", "CO", "HI", "ID", "MT", "NV", "NM", "OR", "UT", "WA", "WY"),"West",
   data$region)
 saveRDS(data,"output/regional_estimates.rds")
-#-------------------------------
-#-------------------------------
-#-------------------------------
-#-------------------------------
-#-------------------------------
+
 #-------------------------------
 # Associations               ####
 rm(list= ls()[!(ls() %in% c(Keep.List))])
-optimal_gw <- as.data.frame(readRDS("output/optimal_gw.rds"))
-data <- as.data.frame(readRDS("output/summary/summary_associations.rds"))
-data <- data[!data$fip %in% "00000",]
-data <- data[(data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
-data <- dplyr::inner_join(data,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
-#data <- data[data$name %in% c("prod00","prod00_LM"),]
+# 20-spec consensus per county for each association coefficient, via gwkit, in place
+# of picking optimal_gw[1,]. (Loaded here too so this section can run on its own.)
 
+assoc <- as.data.frame(readRDS("output/summary/summary_associations.rds"))
+assoc <- assoc[!assoc$fip %in% c("0","00000") &
+                 assoc$crop %in% "hay_alfalfa" &
+                 assoc$period %in% preferred_period &
+                 assoc$climate_base %in% "1991_2020", ]
+assoc <- assoc[is.finite(assoc$est), ]
 
+# one consensus surface per coefficient (avail00 / prod00 / prod00_LM), then stack
+cons <- do.call(rbind, lapply(c("avail00", "prod00", "prod00_LM"), function(nm) {
+  cn <- as.data.frame(gw_consensus_scalar(
+    value_dt = assoc[assoc$name %in% nm, ], unit_col = "fip",
+    geometry = Counties, value_col = "est", agg_fun = stats::median,
+    queen_smooth = FALSE))
+  cn$name <- nm
+  cn
+}))
 
-merged_spat_vector <- terra::merge(Counties, data, by="fip")
-sf_object <- sf::st_as_sf(merged_spat_vector)
+sf_object <- sf::st_as_sf(terra::merge(Counties, cons, by = "fip"))   # one-to-many by name
+sf_object <- sf_object[is.finite(sf_object$consensus), ]
 
-cutlist <- unique(c(min(sf_object$est,na.rm=T),max(sf_object$est,na.rm=T),
-                    quantile(round(unique(sf_object$est[! sf_object$est %in% c(NA,Inf,-Inf,NaN) | sf_object$est <0.0001]),3), probs = seq(0.056,0.32,0.001))))
-
-avail00 <- sf_object$est[sf_object$name %in% "avail00"]
-prod00 <- sf_object$est[sf_object$name %in% "prod00"]
-prod00_LM <- sf_object$est[sf_object$name %in% "prod00_LM"]
-
-cutlist <- unique(c(min(sf_object$est,na.rm=T),max(sf_object$est,na.rm=T),
-                           quantile(unique(avail00), probs = seq(0.3,1,0.3)),
-                           quantile(unique(prod00), probs = seq(0.3,1,0.3)),
-                           quantile(unique(prod00_LM), probs = seq(0.3,1,0.3))))
-
-cutlist <- c(0,unique(round(prod00,4)),unique(round(avail00,3)),unique(round(prod00_LM,3)))
-sf_object$Value <- cut(sf_object$est,cutlist)
-table(sf_object$Value)
-
+# Per-coefficient equal-count quantile classes. The three facets (avail00, prod00,
+# prod00_LM) differ by orders of magnitude, so a single absolute scale collapses the
+# within-facet variation; binning WITHIN each name makes every facet span all colours.
+nbin  <- 6L
+qlabs <- c("Lowest","Low","Mid-low","Mid-high","High","Highest")
+sf_object$Value <- factor(
+  qlabs[ave(sf_object$consensus, sf_object$name, FUN = function(x) dplyr::ntile(x, nbin))],
+  levels = qlabs)
 sf_object <- sf_object[!is.na(sf_object$Value), ]
 
+# Descriptive panel labels. Availability decomposes as own-county production plus the
+# neighbouring (spatially-lagged) production: avail00 = prod00 + prod00_LM.
+sf_object$panel <- factor(sf_object$name,
+  levels = c("avail00", "prod00", "prod00_LM"),
+  labels = c("(a) Total alfalfa availability",
+             "(b) Own-county production",
+             "(c) Neighbouring production"))
 
 Fig06 <- ggplot() +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "darkred",size = 0.2) +
   geom_sf(data = sf_object,aes(fill = Value), colour = NA,size = 0.2) +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.2) +
-  scale_fill_manual(drop=FALSE, values=c(colorRampPalette(c("yellow","darkgreen"))(1+length(unique(as.character(sf_object$Value))))), na.value="#EEEEEE",
-                    name="1,000 tons") +
-  labs(title= "", x = "", y = "",fill ="", fill='',caption = "") +
-  scale_y_continuous(sec.axis = sec_axis(~ . , name = "Kernel\n", breaks = NULL, labels = NULL)) +
-  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Distance metric\n",breaks = NULL, labels = NULL)) +
-  guides(fill = guide_legend(nrow=2,override.aes = list(size=1))) +
-  facet_wrap(~name,ncol=1) +
+  scale_fill_manual(drop=FALSE, values=colorRampPalette(c("yellow","darkgreen"))(nlevels(sf_object$Value)), na.value="#EEEEEE",
+                    name="Within-panel\nquantile\n(low -> high)") +
+  labs(title= "", x = "", y = "", caption = "") +
+  guides(fill = guide_legend(ncol = 2, override.aes = list(size = 1))) +
+  facet_wrap(~panel, ncol = 2) +                       # 2x2: three maps + empty 4th quadrant
   ers_theme() +
   theme_bw() +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.ticks.y = element_blank(),
-        plot.title=element_text(size=10),
-        legend.position="bottom",
+        axis.ticks = element_blank(),
+        plot.title = element_text(size = 10),
+        legend.position = c(0.75, 0.25),               # legend in the empty bottom-right quadrant
+        legend.justification = c(0.5, 0.5),
         legend.background = element_blank(),
-        #legend.position=c(0.17,0.18),
-        legend.key.size = unit(0.2,"cm"),
-        legend.text = element_text(size=7),
-        legend.title = element_text(size=7),
-        axis.title.y = element_text(size=8),
-        axis.title.x = element_text(size=8),
-        axis.text.x  = element_blank(), #
-        axis.text.y  = element_blank(),
-        strip.text = element_text(size = 8),
-        strip.background = element_blank())+coord_sf()
+        legend.key.size = unit(0.35, "cm"),
+        legend.text = element_text(size = 9),
+        legend.title = element_text(size = 10),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        strip.text = element_text(size = 10),
+        strip.background = element_blank()) + coord_sf()
 
-ggsave("output/exhibits/associations.png", Fig06, dpi = 600,width = 6.5, height = 8)
+ggsave("output/exhibits/associations.png", Fig06, dpi = 600, width = 9, height = 6)
 
 #-------------------------------
 # Alfalfa Availability       ####
 rm(list= ls()[!(ls() %in% c(Keep.List))])
-optimal_gw <- as.data.frame(readRDS("output/optimal_gw.rds"))
+# 20-spec consensus of alfalfa availability (baseline, preferred window) via gwkit,
+# in place of picking optimal_gw[1,]. The all-specs facet figure is dropped.
 avail <- as.data.frame(readRDS("output/summary/summary_availability.rds"))
+avail <- avail[avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period &
+                 avail$climate_base %in% "1991_2020" & avail$warming_scenario %in% 0.0, ]
+avail <- avail[!avail$fip %in% c("0","00000"), ]
 avail$est <- avail$Estimate
-avail <- avail[!avail$fip %in% "0",]
-avail <- avail[avail$warming_scenario %in% c(0.0),]
-avail <- avail[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","fip","est")]
-avail$outcome <- "(a) Alfalfa availability"
+avail <- avail[is.finite(avail$est), ]
 
-data <- avail
+avail_cons <- as.data.frame(gw_consensus_scalar(
+  value_dt = avail, unit_col = "fip", geometry = Counties,
+  value_col = "est", agg_fun = stats::median, queen_smooth = FALSE))
 
-data <- dplyr::full_join(data,data.frame(optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")],mainsest=T))
+sf_object <- sf::st_as_sf(terra::merge(Counties, avail_cons, by = "fip"))
+sf_object <- sf_object[is.finite(sf_object$consensus), ]
 
-merged_spat_vector <- terra::merge(Counties, data, by="fip")
-sf_object <- sf::st_as_sf(merged_spat_vector)
-
-cutlist <- unique(c(min(sf_object$est,na.rm=T),max(sf_object$est,na.rm=T),
-                    quantile(unique(sf_object$est[! sf_object$est %in% c(NA,Inf,-Inf,NaN) | sf_object$est <0.0001]), probs = seq(0.1,1,0.2))))
-
-sf_object$Value <- cut(sf_object$est,cutlist)
-table(sf_object$Value)
-
+# equal-count quantile bins (6 classes, ~equal county counts) for max spatial variation
+brks <- unique(stats::quantile(sf_object$consensus, probs = seq(0, 1, length.out = 7), na.rm = TRUE))
+sf_object$Value <- cut(sf_object$consensus, breaks = brks, include.lowest = TRUE, dig.lab = 4)
 sf_object <- sf_object[!is.na(sf_object$Value), ]
 
-sf_object$DistName <- as.numeric(as.character(factor(sf_object$DistName,
-                                                     levels = c("Euclidean distance metric","Manhattan distance metric",
-                                                                "Coordinate system is rotated by an angle 0.8 in radian"),
-                                                     1:3)))
-
-sf_object$DistName <- factor(sf_object$DistName,
-                             levels = 1:3,
-                             c("Euclidean","Manhattan",
-                               "Coordinate system\nrotated by 0.8 radian"))
-
-
-sf_object$kernel <- as.numeric(as.character(factor(sf_object$kernel,
-                                                   levels = c("boxcar","bisquare","tricube","gaussian","exponential"),
-                                                   1:5)))
-
-sf_object$kernel <- factor(sf_object$kernel,
-                           levels = 1:5,c("Boxcar","Bisquare","Tricube","Gaussian","Exponential"))
-
-unique(as.data.frame(sf_object)[c("kernel")])
-
-
-Fig06 <- ggplot() +
-  geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "darkred",size = 0.2) +
+Fig_avail <- ggplot() +
   geom_sf(data = sf_object,aes(fill = Value), colour = NA,size = 0.2) +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.2) +
   scale_fill_manual(drop=FALSE, values=c(colorRampPalette(c("yellow","darkgreen"))(length(unique(as.character(sf_object$Value))))), na.value="#EEEEEE",
                     name="1,000 tons") +
-  labs(title= "", x = "", y = "",fill ="", fill='',caption = "") +
-  scale_y_continuous(sec.axis = sec_axis(~ . , name = "Kernel\n", breaks = NULL, labels = NULL)) +
-  scale_x_continuous(sec.axis = sec_axis(~ . , name = "Distance metric\n",breaks = NULL, labels = NULL)) +
-  guides(fill = guide_legend(nrow=2,override.aes = list(size=1))) +
-  facet_grid(kernel~DistName) +
-  ers_theme() +
-  theme_bw() +
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.ticks.y = element_blank(),
-        plot.title=element_text(size=10),
-        legend.position="bottom",
-        legend.background = element_blank(),
-        #legend.position=c(0.17,0.18),
-        legend.key.size = unit(0.2,"cm"),
-        legend.text = element_text(size=7),
-        legend.title = element_text(size=7),
-        axis.title.y = element_text(size=8),
-        axis.title.x = element_text(size=8),
-        axis.text.x  = element_blank(), #
-        axis.text.y  = element_blank(),
-        strip.text = element_text(size = 8),
-        strip.background = element_blank())+coord_sf()
-
-ggsave("output/exhibits/alfalfa_availability_all.png", Fig06, dpi = 600,width = 6.5, height = 8)
-
-
-Fig_avail <- ggplot() +
-  #geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "darkred",size = 0.2) +
-  geom_sf(data = sf_object[(sf_object$mainsest %in% TRUE),],aes(fill = Value), colour = NA,size = 0.2) +
-  geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.2) +
-  scale_fill_manual(drop=FALSE, values=c(colorRampPalette(c("yellow","darkgreen"))(length(unique(as.character(sf_object$Value))))), na.value="#EEEEEE",
-                    name="1,000 tons") +
-  labs(title= "(a) Alfalfa availability", x = "", y = "",fill ="", fill='',caption = "") +
+  labs(title= "(a) Alfalfa availability (20-spec consensus)", x = "", y = "",fill ="", fill='',caption = "") +
   guides(fill = guide_legend(ncol=2,override.aes = list(size=1))) +
   ers_theme() +
   theme_bw() +
@@ -794,7 +738,6 @@ Fig_avail <- ggplot() +
         axis.ticks.x = element_blank(),
         axis.ticks.y = element_blank(),
         plot.title=element_text(size=10),
-        #legend.position="bottom",
         legend.background = element_blank(),
         legend.position=c(0.17,0.18),
         legend.key.size = unit(0.2,"cm"),
@@ -802,60 +745,68 @@ Fig_avail <- ggplot() +
         legend.title = element_text(size=7),
         axis.title.y = element_text(size=8),
         axis.title.x = element_text(size=8),
-        axis.text.x  = element_blank(), #
+        axis.text.x  = element_blank(),
         axis.text.y  = element_blank(),
         strip.text = element_text(size = 8),
         strip.background = element_blank())+coord_sf()
-
-ggsave("output/exhibits/alfalfa_availability_main.png", Fig_avail, dpi = 600,width = 6.5, height = 5)
-
 
 #-------------------------------
 # cattle                     ####
-corr_cat <- as.data.frame(readRDS("output/summary/summary_cattle.rds"))
-corr_cat$est <- corr_cat$corr_et
-corr_cat <- corr_cat[!corr_cat$fip %in% "0",]
-corr_cat <- corr_cat[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","fip","est")]
-corr_cat$outcome <- "(b) corr_cat"
-optimal_gw <- as.data.frame(readRDS("Results/optimal_gw.rds"))
-corr_cat <- dplyr::inner_join(corr_cat,data.frame(optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")],mainsest=T))
+# "Responsiveness of cattle inventory to alfalfa availability" is the GWR coefficient
+# b_avail00, which lives in summary_associations (est where name == "avail00").
+corr_cat <- as.data.frame(readRDS("output/summary/summary_associations.rds"))
+corr_cat <- corr_cat[corr_cat$name %in% "avail00" &
+                       corr_cat$crop %in% "hay_alfalfa" &
+                       corr_cat$period %in% preferred_period &
+                       corr_cat$climate_base %in% "1991_2020", ]
+corr_cat <- corr_cat[!corr_cat$fip %in% c("0","00000"),]
+corr_cat <- corr_cat[is.finite(corr_cat$est), ]
 
-merged_spat_vector <- terra::merge(Counties, corr_cat, by="fip")
-sf_object <- sf::st_as_sf(merged_spat_vector)
+# 20-spec consensus of the responsiveness coefficient via gwkit.
+corr_cons <- as.data.frame(gw_consensus_scalar(
+  value_dt = corr_cat, unit_col = "fip", geometry = Counties,
+  value_col = "est", agg_fun = stats::median, queen_smooth = FALSE))
 
-cutlist <- unique(c(min(sf_object$est,na.rm=T),max(sf_object$est,na.rm=T),
-                    quantile(unique(sf_object$est[! sf_object$est %in% c(NA,Inf,-Inf,NaN) | sf_object$est <0.0001]), probs = seq(0.1,1,0.2))))
+# --- (folded from 101) continuous diverging map + consensus CSV + sign-agreement diagnostic ---
+# Same per-county consensus as Fig_corr below, rendered on a continuous diverging scale
+# (symmetric 98% clip) and written with its spread / sign-agreement columns.
+write.csv(corr_cons, "output/exhibits/figure_data/consensus_avail00_responsiveness.csv",
+          row.names = FALSE)
+sf_div  <- sf::st_as_sf(terra::merge(Counties, corr_cons, by = "fip"))
+sf_div  <- sf_div[is.finite(sf_div$consensus), ]
+lim_div <- stats::quantile(abs(sf_div$consensus), 0.98, na.rm = TRUE)   # symmetric clip
+Fig_div <- ggplot() +
+  geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "grey95", size = 0.2) +
+  geom_sf(data = sf_div, aes(fill = consensus), colour = NA, size = 0.2) +
+  geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA, size = 0.2) +
+  scale_fill_gradient2(low = "#B2182B", mid = "#F7F7F7", high = "#2166AC",
+                       midpoint = 0, limits = c(-lim_div, lim_div), oob = scales::squish,
+                       name = "Consensus\ncoefficient") +
+  labs(title = "Responsiveness of cattle inventory to alfalfa availability",
+       subtitle = "Per-county median consensus across all GW specs",
+       x = "", y = "", caption = "gwkit::gw_consensus_scalar()") +
+  ers_theme() + theme_bw() +
+  theme(panel.grid = element_blank(), axis.text = element_blank(), axis.ticks = element_blank(),
+        legend.position = "right", plot.title = element_text(size = 11),
+        plot.subtitle = element_text(size = 9)) + coord_sf()
+ggsave("output/exhibits/consensus_avail00_responsiveness.png", Fig_div, dpi = 600,
+       width = 7.5, height = 5)
+message("consensus_avail00: ", nrow(sf_div), " counties; median sign-agreement = ",
+        round(stats::median(corr_cons$sign_agreement, na.rm = TRUE), 3))
 
-sf_object$Value <- cut(sf_object$est,cutlist)
-table(sf_object$Value)
+sf_object <- sf::st_as_sf(terra::merge(Counties, corr_cons, by = "fip"))
+sf_object <- sf_object[is.finite(sf_object$consensus), ]
 
+brks <- unique(stats::quantile(sf_object$consensus, probs = seq(0, 1, length.out = 7), na.rm = TRUE))
+sf_object$Value <- cut(sf_object$consensus, breaks = brks, include.lowest = TRUE, dig.lab = 4)
 sf_object <- sf_object[!is.na(sf_object$Value), ]
 
-sf_object$DistName <- as.numeric(as.character(factor(sf_object$DistName,
-                                                     levels = c("Euclidean distance metric","Manhattan distance metric",
-                                                                "Coordinate system is rotated by an angle 0.8 in radian"),
-                                                     1:3)))
-
-sf_object$DistName <- factor(sf_object$DistName,
-                             levels = 1:3,
-                             c("Euclidean","Manhattan",
-                               "Coordinate system\nrotated by 0.8 radian"))
-
-
-sf_object$kernel <- as.numeric(as.character(factor(sf_object$kernel,
-                                                   levels = c("boxcar","bisquare","tricube","gaussian","exponential"),
-                                                   1:5)))
-
-sf_object$kernel <- factor(sf_object$kernel,
-                           levels = 1:5,c("Boxcar","Bisquare","Tricube","Gaussian","Exponential"))
-
 Fig_corr <- ggplot() +
-  #geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "darkred",size = 0.2) +
-  geom_sf(data = sf_object[(sf_object$mainsest %in% TRUE),],aes(fill = Value), colour = NA,size = 0.2) +
+  geom_sf(data = sf_object,aes(fill = Value), colour = NA,size = 0.2) +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.2) +
   scale_fill_manual(drop=FALSE, values=c(colorRampPalette(c("#FFEBCD","#800000"))(length(unique(as.character(sf_object$Value))))), na.value="#EEEEEE",
                     name="Percentage") +
-  labs(title= "(b) Responsiveness of cattle inventory to alfalfa availability", x = "", y = "",fill ="", fill='',caption = "") +
+  labs(title= "(b) Responsiveness of cattle inventory to alfalfa availability (20-spec consensus)", x = "", y = "",fill ="", fill='',caption = "") +
   guides(fill = guide_legend(ncol=2,override.aes = list(size=1))) +
   ers_theme() +
   theme_bw() +
@@ -864,7 +815,6 @@ Fig_corr <- ggplot() +
         axis.ticks.x = element_blank(),
         axis.ticks.y = element_blank(),
         plot.title=element_text(size=10),
-        #legend.position="bottom",
         legend.background = element_blank(),
         legend.position=c(0.17,0.18),
         legend.key.size = unit(0.2,"cm"),
@@ -872,12 +822,10 @@ Fig_corr <- ggplot() +
         legend.title = element_text(size=7),
         axis.title.y = element_text(size=8),
         axis.title.x = element_text(size=8),
-        axis.text.x  = element_blank(), #
+        axis.text.x  = element_blank(),
         axis.text.y  = element_blank(),
         strip.text = element_text(size = 8),
         strip.background = element_blank())+coord_sf()
-
-ggsave("output/exhibits/corr_catle_avail_main.png", Fig_corr, dpi = 600,width = 6.5, height = 5)
 
 marg <- c(-0.01,0.05,-0.01,0.05)
 
@@ -890,251 +838,111 @@ Fig <- cowplot::plot_grid(
 ggsave("output/exhibits/availability_cattle.png", Fig, dpi = 600,width = 6.5, height = 9)
 
 #-------------------------------
-# Regional estimates         ####
-rm(list= ls()[!(ls() %in% c(Keep.List))]);gc()
-optimal_gw <- as.data.frame(readRDS("Results/optimal_gw.rds"))
+# Predicted county-level impacts (spatial; not in article yet)   ####
+# Yield + availability + cattle % impact by warming scenario, per county. Availability
+# and cattle are GW outcomes -> per-county 20-spec consensus per scenario via gwkit;
+# yield is spec-invariant, so its consensus equals its value.
+rm(list = ls()[!(ls() %in% c(Keep.List))])
 
-yield <- as.data.frame(readRDS("Results/summary_impact_yield.rds"))
-yield$impact_yield <- yield$Estimate
-yield$fip<-as.character(paste0(stringr::str_pad(as.numeric(as.character(yield$state_code)), 2, pad = "0"),
-                               stringr::str_pad(as.numeric(as.character(yield$county_code)), 3, pad = "0")))
-yield <- yield[!yield$state_code %in% 0,]
-yield <- yield[yield$warming_scenario %in% 1.0,]
-yield <- yield[(yield$crop %in% "hay_alfalfa" & yield$period %in% preferred_period & yield$climate_base %in% "1991_2020"),]
-yield <- dplyr::inner_join(yield,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
-yield <- yield[c("state_code","county_code","fip","impact_yield")]
+.scen <- c(0.5, 1.0, 1.5, 2.0, 2.5, 3.0)
 
-avail <- as.data.frame(readRDS("Results/summary_impact_avail.rds"))
-avail$level_avail <- avail$Estimate
-avail <- avail[!avail$fip %in% "0",]
-avail <- avail[avail$warming_scenario %in% c(0.0),]
-avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period & avail$climate_base %in% "1991_2020"),]
-avail <- dplyr::inner_join(avail,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
-avail <- avail[c("fip","level_avail")]
-data <- dplyr::inner_join(data,avail,by="fip")
-
-res <- as.data.frame(readRDS("Results/summary_corr_catle_avail.rds"))
-res$corr_cat <- res$corr_et
-res <- res[!res$fip %in% "0",]
-res <- res[(res$crop %in% "hay_alfalfa" & res$period %in% preferred_period & res$climate_base %in% "1991_2020"),]
-res <- dplyr::inner_join(res,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
-res <- res[c("fip","corr_cat")]
-data <- dplyr::inner_join(data,res,by="fip")
-
-avail <- as.data.frame(readRDS("Results/summary_impact_avail.rds"))
-avail$impact_avail <- avail$Estimate
-avail <- avail[!avail$fip %in% "0",]
-avail <- avail[avail$warming_scenario %in% 1.0,]
-avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period & avail$climate_base %in% "1991_2020"),]
-avail <- dplyr::inner_join(avail,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
-avail <- avail[c("fip","impact_avail")]
-data <- dplyr::inner_join(yield,avail,by="fip")
-
-catle <- as.data.frame(readRDS("Results/summary_impact_catle.rds"))
-catle$impact_cattle <- catle$Estimate
-catle <- catle[!catle$fip %in% "0",]
-catle <- catle[catle$warming_scenario %in% 1.0,]
-catle <- catle[(catle$crop %in% "hay_alfalfa" & catle$period %in% preferred_period & catle$climate_base %in% "1991_2020"),]
-catle <- dplyr::inner_join(catle,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
-catle <- catle[c("fip","impact_cattle")]
-data <- dplyr::inner_join(data,catle,by="fip")
-
-data <- dplyr::inner_join(data,stnames[c("state_code","State.Name","State.Abbreviation" )],by="state_code")
-
-data$region <- ifelse(
-  data$State.Abbreviation %in% c("CT", "DE", "ME", "MD", "MA", "NH", "NJ", "NY", "PA", "RI", "VT"),"Northeast",
-  NA)
-data$region <- ifelse(
-  data$State.Abbreviation %in% c("IL", "IN", "IA", "KS", "MI", "MN", "MO", "NE", "ND", "OH", "SD", "WI"),"Midwest",
-  data$region)
-data$region <- ifelse(
-  data$State.Abbreviation %in% c("AL", "AR", "FL", "GA", "KY", "LA", "MS", "NC", "OK", "SC", "TN", "TX", "VA", "WV"),"South",
-  data$region)
-data$region <- ifelse(
-  data$State.Abbreviation %in% c("AZ", "CA", "CO", "HI", "ID", "MT", "NV", "NM", "OR", "UT", "WA", "WY"),"West",
-  data$region)
-
-write.csv(data,"output/exhibits/figure_data/regional_estimates.csv")
-#-------------------------------
-# Impacts Spatial            ####
-rm(list= ls()[!(ls() %in% c(Keep.List))])
-optimal_gw <- as.data.frame(readRDS("Results/optimal_gw.rds"))
-yield <- as.data.frame(readRDS("Results/summary_impact_yield.rds"))
-yield$est <- yield$Estimate
-yield$se  <- yield$Estimate_sd
-yield <- yield[!yield$county_code %in% 0,]
-yield <- yield[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","warming_scenario","fip","est","se")]
-yield$outcome <- "(a) Alfalfa yield"
-
-avail <- as.data.frame(readRDS("Results/summary_impact_avail.rds"))
-avail$est <- avail$Estimate
-avail$se <- avail$Estimate_sd
-avail <- avail[!avail$fip %in% "0",]
-avail <- avail[!avail$warming_scenario %in% c(0.0),]
-avail <- avail[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","warming_scenario","fip","est","se")]
-avail$outcome <- "(b) Alfalfa availability"
-
-cattle <- as.data.frame(readRDS("Results/summary_impact_catle.rds"))
-cattle$est <- cattle$Estimate
-cattle$se <- cattle$Estimate_sd
-cattle <- cattle[!cattle$fip %in% "0",]
-cattle <- cattle[!cattle$warming_scenario %in% c(0.0),]
-cattle <- cattle[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","warming_scenario","fip","est","se")]
-cattle$outcome <- "(c) Cattle inventory"
-
-data <- rbind(avail,yield,cattle)
-
-data <- data[(data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
-
-data$SimCat<-factor(data$warming_scenario,levels=unique(data$warming_scenario),
-                    labels = paste0("+",format(unique(data$warming_scenario), nsmall = 1)," °C"))
-
-USMUR  <- terra::rast(paste0(Dr.USMUR,"USAMU_90m.tif"))
-States <- terra::vect(paste0(Dr.POLYG,"USA_States.shp"))
-States <- terra::project(States, terra::crs(USMUR))
-States <- terra::crop(States, terra::ext(USMUR))
-
-Counties <- terra::vect(paste0(Dr.POLYG,"USA_Counties.shp"))
-Counties <- terra::project(Counties, terra::crs(USMUR))
-Counties <- terra::crop(Counties, terra::ext(USMUR))
-Counties$fip<-as.character(paste0(stringr::str_pad(as.numeric(as.character(Counties$STATEFP)), 2, pad = "0"),
-                                  stringr::str_pad(as.numeric(as.character(Counties$COUNTYFP)), 3, pad = "0")))
-
-# state_data <- dplyr::inner_join(state_data,stnames[c("state_code","State.Name","State.Abbreviation" )],by="state_code")
-# write.csv(state_data,"output/exhibits/figure_data/impacts_yield_spatial.csv")
-
-
-fig_fxn <- function(outcome){
-  #outcome <- "(a) Alfalfa yield"
-
-  merged_spat_vector <- terra::merge(Counties, data[data$outcome %in% outcome,], by="fip")
-  sf_object <- sf::st_as_sf(merged_spat_vector)
-
-  cutlist <- unique(c(min(sf_object$est,na.rm=T),0,max(sf_object$est,na.rm=T),
-                      quantile(unique(sf_object$est[! sf_object$est %in% c(NA,Inf,-Inf,NaN) | sf_object$est <0.0001]), probs = seq(0.1,1,0.10))))
-
-  sf_object$Value <- cut(sf_object$est,cutlist)
-  table(sf_object$Value)
-
-  sf_object <- sf_object[!is.na(sf_object$Value), ]
-  table(sf_object$Value,sf_object$SimCat)
-  table(sf_object$SimCat)
-  Fig <- ggplot() +
-    geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "darkred",size = 0.1) +
-    geom_sf(data = sf_object,aes(fill = Value), colour = NA,size = 0.2) +
-    geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.1) +
-    scale_fill_manual(drop=FALSE, values=c(colorRampPalette(c("red","yellow"))(length(unique(as.character(sf_object$Value)))-2),
-                                           "green","darkgreen"), na.value="#EEEEEE",
-                      name="") +
-    labs(title= paste0(outcome," impact in percentage"), x = "", y = "",fill ="", fill='',caption = "") +
-    guides(fill = guide_legend(nrow=1)) +
-    facet_wrap(vars(SimCat),nrow=1) +
-    ers_theme() +
-    theme_bw() +
-    theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          axis.ticks.x = element_blank(),
-          axis.ticks.y = element_blank(),
-          plot.title=element_text(size=8),
-          legend.position="top",
-          legend.background = element_blank(),
-          #legend.position=c(0.17,0.18),
-          legend.key.size = unit(0.2,"cm"),
-          legend.text=element_text(size=4),
-          legend.title=element_blank(),
-          axis.title.y = element_blank(),
-          axis.title.x = element_blank(),
-          axis.text.x = element_blank(), #
-          axis.text.y = element_blank(),
-          strip.text = element_blank(),
-          strip.background = element_blank())+coord_sf()
-
-  ggsave(paste0("output/exhibits/spatial_impart_",gsub(" ","_",gsub("[(]a[)] ","",gsub("[(]b[)] ","",gsub("[(]c[)] ","",outcome)))),".png"),
-         Fig, dpi = 600,width = 7, height = 2)
-  gc()
-  return(Fig)
+.impact_consensus <- function(path, value_col, outcome) {
+  d <- as.data.frame(readRDS(path))
+  d$warming_scenario <- suppressWarnings(as.numeric(as.character(d$warming_scenario)))
+  d <- d[d$crop %in% "hay_alfalfa" & d$period %in% preferred_period &
+           d$climate_base %in% "1991_2020" & d$warming_scenario %in% .scen &
+           !d$fip %in% c("0", "00000"), ]
+  d$est <- suppressWarnings(as.numeric(d[[value_col]]))
+  d <- d[is.finite(d$est), ]
+  do.call(rbind, lapply(.scen, function(sc) {
+    ds <- d[d$warming_scenario %in% sc, ]
+    if (nrow(ds) == 0) return(NULL)
+    cn <- as.data.frame(gw_consensus_scalar(
+      ds, unit_col = "fip", geometry = Counties, value_col = "est",
+      agg_fun = stats::median, queen_smooth = FALSE))
+    data.frame(fip = cn$fip, warming_scenario = sc, est = cn$consensus,
+               outcome = outcome, stringsAsFactors = FALSE)
+  }))
 }
 
-Figa <- fig_fxn("(a) Alfalfa yield")
-Figb <- fig_fxn("(b) Alfalfa availability")
-Figc <- fig_fxn("(c) Cattle inventory")
+impacts <- rbind(
+  .impact_consensus("output/summary/summary_impact_yield.rds", "Estimate", "(a) Alfalfa yield"),
+  .impact_consensus("output/summary/summary_availability.rds", "Estimate", "(b) Alfalfa availability"),
+  .impact_consensus("output/summary/summary_cattle.rds",       "cattleA",  "(c) Cattle inventory"))
+impacts$SimCat <- factor(impacts$warming_scenario, levels = .scen,
+                         labels = paste0("+", format(.scen, nsmall = 1), " °C"))
+write.csv(impacts, "output/exhibits/figure_data/predicted_impacts_consensus.csv", row.names = FALSE)
 
-marg <- c(-0.01,0.05,-0.01,0.05)
-
-Fig <- cowplot::plot_grid(
-  Figa + theme(plot.margin=unit(marg, "cm")) ,
-  Figb + theme(plot.margin=unit(marg, "cm")) ,
-  Figc + theme(plot.margin=unit(marg, "cm")),
-  ncol=1, align="v",rel_heights=c(1,1,1),
-  greedy=F)
-
-stripT <- gtable_filter(ggplot_gtable(ggplot_build(
-  Figa + theme(strip.background = element_blank(),strip.text = element_text(size=7)))), "strip-t")
-
-Figx <- grid.arrange(stripT,Fig,heights=c(0.05,1),ncol = 1)
-
-ggsave(paste0("output/exhibits/spatial_impart.png"), Figx, dpi = 600,width = 6.5, height = 4.3)
+lim <- stats::quantile(abs(impacts$est), 0.98, na.rm = TRUE)
+panel <- function(outcome) {
+  sfo <- sf::st_as_sf(terra::merge(Counties, impacts[impacts$outcome %in% outcome, ], by = "fip"))
+  sfo <- sfo[is.finite(sfo$est), ]
+  ggplot() +
+    geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "grey85", size = 0.1) +
+    geom_sf(data = sfo, aes(fill = est), colour = NA, size = 0.2) +
+    geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA, size = 0.1) +
+    scale_fill_gradient2(low = "#B2182B", mid = "#F7F7F7", high = "#2166AC", midpoint = 0,
+                         limits = c(-lim, lim), oob = scales::squish, name = "% impact") +
+    labs(title = outcome, x = "", y = "", caption = "") +
+    facet_wrap(vars(SimCat), nrow = 1) +
+    ers_theme() + theme_bw() +
+    theme(panel.grid = element_blank(), axis.ticks = element_blank(),
+          plot.title = element_text(size = 9), legend.position = "right",
+          legend.key.width = unit(0.3, "cm"), legend.text = element_text(size = 6),
+          axis.text = element_blank(), strip.text = element_text(size = 7),
+          strip.background = element_blank()) + coord_sf()
+}
+Fig6 <- cowplot::plot_grid(panel("(a) Alfalfa yield"),
+                           panel("(b) Alfalfa availability"),
+                           panel("(c) Cattle inventory"),
+                           ncol = 1, align = "v")
+ggsave("output/exhibits/predicted_county_impacts.png", Fig6, dpi = 600, width = 9, height = 6)
 
 #-------------------------------
-# Impacts mean               ####
-rm(list= ls()[!(ls() %in% c(Keep.List))])
-optimal_gw <- as.data.frame(readRDS("Results/optimal_gw.rds"))
-yield <- as.data.frame(readRDS("Results/summary_impact_yield.rds"))
-yield$est <- yield$Estimate
-yield$se  <- yield$Estimate_sd
-yield <- yield[yield$county_code %in% 0,]
-yield <- yield[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","warming_scenario","est","se")]
+# Predicted impacts (mean; dot plot; not in article yet)   ####
+# National impact by hay type, season window, climate baseline, and warming scenario,
+# faceted by outcome (yield / availability / cattle). The v00 by-kernel and
+# by-distance-metric panels are dropped: 006 now reduces the 50 GW specs to one
+# per-county consensus, so there is no per-spec dimension to display.
+rm(list = ls()[!(ls() %in% c(Keep.List))])
+
+.common <- c("crop","period","climate_base","warming_scenario","est","se","outcome")
+
+yield <- data.table::as.data.table(readRDS("output/summary/summary_impact_yield.rds"))
+yield$est <- yield$Estimate; yield$se <- yield$Estimate_sd
+yield <- yield[county_code %in% 0 & state_code %in% 0 & region %in% "", ]
 yield$outcome <- "(a) Alfalfa yield"
+yield <- as.data.frame(yield)[, .common]
 
-# avail <- as.data.frame(readRDS("Results/summary_impact_avail.rds"))
-# avail$est <- avail$Estimate
-# avail$se <- avail$Estimate_sd
-# avail <- avail[avail$fip %in% "0",]
-# avail <- avail[!avail$warming_scenario %in% c(0.0),]
-# avail <- avail[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","warming_scenario","est","se")]
-# avail$outcome <- "(b) Alfalfa availability"
-#
-# cattle <- as.data.frame(readRDS("Results/summary_impact_catle.rds"))
-# cattle$est <- cattle$Estimate
-# cattle$se <- cattle$Estimate_sd
-# cattle <- cattle[cattle$fip %in% "0",]
-# cattle <- cattle[!cattle$warming_scenario %in% c(0.0),]
-# cattle <- cattle[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","warming_scenario","est","se")]
-# cattle$outcome <- "(c) Cattle inventory"
+# summary_availability / summary_cattle are per-county with no national aggregate row, so
+# build the national series by averaging the per-county impact within each cell/scenario
+# (se = across-county sd). Yield keeps its stored national bootstrap se.
+.national <- function(path, val, outcome_label) {
+  d <- data.table::as.data.table(readRDS(path))
+  d <- d[!fip %in% c("0", "00000")]
+  d[, est := suppressWarnings(as.numeric(get(val)))]
+  d[, warming_scenario := suppressWarnings(as.numeric(as.character(warming_scenario)))]
+  d <- d[is.finite(est)]
+  keys <- intersect(c("crop","period","climate_base","warming_scenario"), names(d))
+  ag <- d[, .(est = mean(est, na.rm = TRUE), se = stats::sd(est, na.rm = TRUE)), by = keys]
+  ag[, outcome := outcome_label]
+  as.data.frame(ag)[, .common]
+}
+avail  <- .national("output/summary/summary_availability.rds", "Estimate", "(b) Alfalfa availability")
+cattle <- .national("output/summary/summary_cattle.rds",       "cattleA",  "(c) Cattle inventory")
 
-# data <- rbind(avail,yield,cattle)
-data <- yield
+data <- rbind(yield, avail, cattle)
+data$warming_scenario <- suppressWarnings(as.numeric(as.character(data$warming_scenario)))
+
 data_main <- data[(data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
-data_main <- dplyr::inner_join(data_main,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
-
 data_crop <- data[(data$warming_scenario %in% 1.0 & data$crop %in% c("hay_other","hay_alfalfa") & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
-data_crop <- dplyr::inner_join(data_crop,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
-
-data_year <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% c("1991_2020","1981_2010","1971_2000","1961_1990")),]
-data_year <- dplyr::inner_join(data_year,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
-
-data_wind <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% c(105:110) & data$climate_base %in% "1991_2020"),]
-data_wind <- dplyr::inner_join(data_wind,optimal_gw[1,c("p", "theta", "longlat", "DistName", "kernel")])
-
-data_dist <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% c("1991_2020") &
-                     data$kernel %in% optimal_gw[1,"kernel"]),]
-
-data_kenl <- data[(data$warming_scenario %in% 1.0 &data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% c("1991_2020") &
-                     data$DistName %in% optimal_gw[1,"DistName"]),]
+data_year <- data[(data$warming_scenario %in% 1.0 & data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% c("1991_2020","1981_2010","1971_2000","1961_1990")),]
+data_wind <- data[(data$warming_scenario %in% 1.0 & data$crop %in% "hay_alfalfa" & data$period %in% c(105:110) & data$climate_base %in% "1991_2020"),]
 
 data_main$type <- "Impact by warming scenario"
 data_year$type <- "1+°C warming by climate baseline"
 data_wind$type <- "1+°C warming by season window"
 data_crop$type <- "1+°C warming by hay type"
-data_kenl$type <- "1+°C warming by kernel"
-data_dist$type <- "1+°C warming by distance metric"
-
-data_main <- data_main[order(data_main$warming_scenario),]
-data_kenl <- data_kenl[order(data_kenl$est),]
-data_dist <- data_dist[order(data_dist$est),]
-data_crop <- data_crop[order(data_crop$est),]
-data_year <- data_year[order(data_year$est),]
-data_main <- data_main[order(data_main$est),]
 
 data_wind$period <- ifelse(data_wind$period %in% 0,113,data_wind$period)
 data_wind <- data_wind[order(-data_wind$period),]
@@ -1142,49 +950,38 @@ data_wind <- data_wind[order(-data_wind$period),]
 data_wind$x_name <- paste0(data_wind$period-100," months")
 data_wind$x_name <- ifelse(data_wind$x_name %in% "13 months","All months",data_wind$x_name)
 data_year$x_name <- data_year$climate_base
-data_crop$x_name <- factor(data_crop$crop,levels = c("hay_other","hay_all","hay_alfalfa"),
-                           labels = c("Non-alfalfa","Combined","Alfalfa"))
+data_crop$x_name <- as.character(factor(data_crop$crop,levels = c("hay_other","hay_all","hay_alfalfa"),
+                           labels = c("Non-alfalfa","Combined","Alfalfa")))
 data_main$x_name <- paste0(format(as.numeric(as.character(data_main$warming_scenario)), nsmall = 1) ,"+°C")
 
-data_kenl$x_name <- as.character(factor(data_kenl$kernel,levels = c("exponential","gaussian","boxcar","bisquare","tricube"),
-                                        labels = c("Exponential","Gaussian","Boxcar","Bisquare","Tricube")))
-data_dist$x_name <- as.character(factor(data_dist$DistName,levels = c("Manhattan distance metric","Euclidean distance metric",
-                                                                      "Coordinate system is rotated by an angle 0.8 in radian"),
-                                        labels = c("Manhattan","Euclidean","Coordinate system")))
-
-unique(data_dist$DistName)
-
-data_kenly <- data_kenl[data_kenl$outcome %in% "(a) Alfalfa yield",]
-data_disty <- data_dist[data_dist$outcome %in% "(a) Alfalfa yield",]
+# x positions taken from the yield column, then shared across all three facets.
 data_cropy <- data_crop[data_crop$outcome %in% "(a) Alfalfa yield",]
 data_windy <- data_wind[data_wind$outcome %in% "(a) Alfalfa yield",]
 data_yeary <- data_year[data_year$outcome %in% "(a) Alfalfa yield",]
 data_mainy <- data_main[data_main$outcome %in% "(a) Alfalfa yield",]
 
-data_kenly$x <- 1:nrow(data_kenly) + 2
-data_disty$x <- max(data_kenly$x) + c(1:nrow(data_disty)) + 2
-data_cropy$x <- max(data_disty$x) + c(1:nrow(data_cropy)) + 2
+data_cropy$x <- 1:nrow(data_cropy) + 2
 data_windy$x <- max(data_cropy$x) + c(1:nrow(data_windy)) + 2
 data_yeary$x <- max(data_windy$x) + c(1:nrow(data_yeary)) + 2
 data_mainy$x <- max(data_yeary$x) + c(1:nrow(data_mainy)) + 2
 
-datay <- rbind(data_cropy,data_mainy,data_yeary,data_windy,data_kenly,data_disty)
-datay <- unique(datay[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","warming_scenario","x_name","x")])
-data <- rbind(data_crop,data_main,data_year,data_wind,data_kenl,data_dist)
+datay <- rbind(data_cropy,data_mainy,data_yeary,data_windy)
+datay <- unique(datay[c("crop","period","climate_base","warming_scenario","x_name","x")])
+data <- rbind(data_crop,data_main,data_year,data_wind)
 data <- dplyr::inner_join(data,datay)
 
-data_text <- doBy::summaryBy(x~type,data=data,FUN=max,keep.names = T,na.rm=T)
+data_text <- doBy::summaryBy(x~type,data=data[data$outcome %in% "(a) Alfalfa yield",],FUN=max,keep.names = T,na.rm=T)
 data_text$outcome <- "(a) Alfalfa yield"
+.ylab <- min(data$est[data$outcome %in% "(a) Alfalfa yield"], na.rm = TRUE)
 
 Fig04 <- ggplot(data,aes(x=x,y=est,group=1)) +
   geom_hline(yintercept = 0,size = 0.2,color = "black") +
   geom_errorbar(aes(ymin = est - se*1.96, ymax = est + se*1.96),color="purple") +
   geom_point(color="purple") +
-  geom_text(data=data_text,aes(x=x+1.5,y=-13,label=type, hjust = 0), size = 2.5, col = "black",
+  geom_text(data=data_text,aes(x=x+1.5,y=.ylab,label=type, hjust = 0), size = 2.5, col = "black",
             stat = "identity",check_overlap = TRUE) +
-  scale_y_continuous(breaks=seq(-60,0,2.5),labels=format(round(seq(-60,0,2.5),2), nsmall = 2)) +
-  #facet_wrap(~outcome,nrow=1,scales = "free_x") +
-  scale_x_continuous(breaks=data$x,labels=data$x_name) +
+  facet_wrap(~outcome, nrow = 1, scales = "free") +
+  scale_x_continuous(breaks=datay$x,labels=datay$x_name) +
   labs(title="", x="", y ="\nImpact (%)",caption = "") +
   myTheme +
   theme(axis.text.x = element_text(size=7,color="black"),
@@ -1192,8 +989,5 @@ Fig04 <- ggplot(data,aes(x=x,y=est,group=1)) +
         strip.text = element_text(size = 9),
         legend.position="none")+ coord_flip()
 
-write.csv(data,"output/exhibits/figure_data/impacts_mean.csv")
-ggsave("output/exhibits/impacts_mean.png", Fig04, dpi = 600,width = 4, height = 6)
-#ggsave("output/exhibits/impacts_mean.png", Fig04, dpi = 600,width = 7, height = 6)
-
-#-------------------------------
+write.csv(data, "output/exhibits/figure_data/predicted_impacts_mean.csv", row.names = FALSE)
+ggsave("output/exhibits/predicted_impacts_mean.png", Fig04, dpi = 600, width = 10, height = 7.5)

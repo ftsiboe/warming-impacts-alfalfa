@@ -7,11 +7,32 @@ invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = T
 # devtools::document(file.path(dirname(dirname(getwd())),"packages/rAgroClimate"))
 
 # gwkit (sibling package) is the canonical GW toolkit for this project.
-if(grepl("windows", sysname)){
-  devtools::load_all(file.path(dirname(dirname(getwd())),"packages/gwkit"))
-}else{
-  devtools::load_all(file.path(dirname(getwd()),"packages/gwkit"))
+sysname   <- tolower(as.character(Sys.info()[["sysname"]]))
+gwkit_src <- if (grepl("windows", sysname)) {
+  file.path(dirname(dirname(getwd())), "packages/gwkit")
+} else {
+  file.path(dirname(getwd()), "packages/gwkit")
 }
+
+# INSTALL the local gwkit so parallel WORKERS load the same version as the main
+# session. devtools::load_all() injects gwkit into this process only; multisession
+# workers fall back to the installed copy (multicore/fork DOES inherit load_all, so
+# on the cluster this is belt-and-braces). Install when gwkit is missing, older than
+# the source, OR predates the consensus refactor (dev version may be unchanged, so
+# also probe the API). For the SLURM array, install gwkit ONCE before submitting so
+# all tasks find it current and skip this (avoids a concurrent-install race).
+.src_ver  <- tryCatch(as.package_version(read.dcf(file.path(gwkit_src, "DESCRIPTION"))[, "Version"]),
+                      error = function(e) NULL)
+.inst_ver <- tryCatch(utils::packageVersion("gwkit"), error = function(e) NULL)
+.has_api  <- tryCatch(
+  "gw_consensus_scalar" %in% getNamespaceExports("gwkit") &&
+    "terms" %in% names(formals(getExportedValue("gwkit", "estimate_gwr"))),
+  error = function(e) FALSE)
+if (is.null(.inst_ver) || (!is.null(.src_ver) && .inst_ver < .src_ver) || !.has_api) {
+  message("Installing local gwkit from ", gwkit_src, " ...")
+  devtools::install(gwkit_src, upgrade = FALSE, quick = TRUE, quiet = TRUE)
+}
+library(gwkit)
 set.seed(08032024)
 
 # ==============================================================================
@@ -32,7 +53,7 @@ set.seed(08032024)
 #                                               weighted, self-excluded, multi-col)
 #   estimate_gwr()                           -> cattle~avail00 and
 #                                               cattle~prod00+prod00_LM (GWR)
-#   gw_optimal_scalar()           -> across-spec consensus diagnostics
+#   gw_consensus_scalar()           -> across-spec consensus diagnostics
 #
 # The optimal_gw cross-validation pick is REMOVED (consensus replaces it).
 # Bandwidths are precomputed once per (cell x spec) on the full sample and cached
@@ -83,6 +104,67 @@ CELLS$cellN <- 1:nrow(CELLS)
 rm(CELLS_crop,CELLS_period)
 
 #-----------------------------------------------
+# County GWFE degree-day yield slopes (consensus across specs)   ####
+# Per-county b_DD1/b_DD2/b_DD3 evaluated AT EACH COUNTY'S OWN knot (from 004's
+# optimal_knots_gw): under each of the 50 GW specs, fit the GWFE panel regression
+# lny ~ DD1+DD2+DD3+ppt+ppt2 (gwkit::estimate_gwr, panel = fip, time = year) once
+# per DISTINCT selected knot pair, assign each county the slopes from the fit at
+# ITS pair, then reduce to a per-county consensus (median) across specs. The
+# bandwidth is selected once per spec (adaptive) and reused across pairs. Returns
+# NULL (=> national PWM.COEF fallback) when there are no county knots for `crop`.
+.gwfe_county_betas <- function(boot_panel, Counties, spec_gw, crop){
+  gwk_file <- "output/optimal_knots_gw.rds"
+  if(!file.exists(gwk_file)) return(NULL)
+  gwk <- data.table::as.data.table(readRDS(gwk_file))
+  if("crop" %in% names(gwk)) gwk <- gwk[crop %in% ..crop]
+  gwk <- gwk[, .(fip = as.character(fip), Tmin = as.integer(Tmin), Tmax = as.integer(Tmax))]
+  gwk <- gwk[is.finite(Tmin) & is.finite(Tmax)]
+  if(nrow(gwk) == 0) return(NULL)
+  pairs <- unique(gwk[, .(Tmin, Tmax)])                        # distinct selected pairs only
+
+  pad    <- function(x) stringr::str_pad(x, 2, pad = "0")
+  dd_all <- grep("^dday[0-9]+$", names(boot_panel), value = TRUE)
+  d0 <- data.table::as.data.table(boot_panel)
+  d0[, fip := as.character(fip)]
+  d0 <- d0[, lapply(.SD, mean, na.rm = TRUE), by = c("fip","year"),
+           .SDcols = c("lny","ppt","ppt2", dd_all)]
+
+  per_spec <- future.apply::future_lapply(1:nrow(spec_gw), function(s){
+    spec <- spec_gw[s, ]; bw_s <- NULL
+    acc <- vector("list", nrow(pairs))
+    for(pp in 1:nrow(pairs)){
+      tmin <- pairs$Tmin[pp]; tmax <- pairs$Tmax[pp]
+      d <- data.table::copy(d0)
+      d[, DD1 := pmax(get("dday00")                  - get(paste0("dday", pad(tmin))), 0)]
+      d[, DD2 := pmax(get(paste0("dday", pad(tmin))) - get(paste0("dday", pad(tmax))), 0)]
+      d[, DD3 := pmax(get(paste0("dday", pad(tmax))), 0)]
+      out <- tryCatch(gwkit::estimate_gwr(
+        data = d, unit = "fip", geometry = Counties,
+        formula = lny ~ DD1 + DD2 + DD3 + ppt + ppt2,
+        panel = "fip", time = "year",
+        distance_metric = spec$distance_metric, kernel = spec$kernel,
+        adaptive = TRUE, bw = bw_s, terms = c("DD1","DD2","DD3")),
+        error = function(e) NULL)
+      if(is.null(out)) next
+      if(is.null(bw_s)) bw_s <- attr(out, "bandwidth")        # reuse spec bandwidth across pairs
+      b <- data.table::dcast(out[estimand == "mean"], unit_id ~ term, value.var = "estimate")
+      b[, `:=`(fip = as.character(unit_id), Tmin = tmin, Tmax = tmax)]
+      acc[[pp]] <- b[, .(fip, Tmin, Tmax, DD1, DD2, DD3)]
+    }
+    allb <- data.table::rbindlist(acc, fill = TRUE)
+    if(nrow(allb) == 0) return(NULL)
+    merge(gwk, allb, by = c("fip","Tmin","Tmax"))             # each county <- its own-pair slopes
+  }, future.seed = TRUE)
+
+  per_spec <- data.table::rbindlist(Filter(Negate(is.null), per_spec), fill = TRUE)
+  if(nrow(per_spec) == 0) return(NULL)
+  per_spec[, .(b_DD1 = stats::median(DD1, na.rm = TRUE),
+               b_DD2 = stats::median(DD2, na.rm = TRUE),
+               b_DD3 = stats::median(DD3, na.rm = TRUE),
+               n_spec_gwfe = .N), by = fip]
+}
+
+#-----------------------------------------------
 # BASE (spec-invariant) block for one boot x cell           ####
 # Yield model + county production panel + projected county centroids. None of
 # this depends on the GW specification, so it is computed once per cell.
@@ -93,7 +175,7 @@ estimate_cell_base <- function(boot, cell){
     climate_base <- cell$climate_base[[1]]
 
     data <- build_hay_weather_panel(
-      crop = "hay_alfalfa", target_periods = period,
+      crop = crop, target_periods = period,
       prism_weather_directory = "data/prism_weather")
 
     sampled_years <- readRDS("output/boot_list.rds")[[boot]]
@@ -110,7 +192,7 @@ estimate_cell_base <- function(boot, cell){
 
     # Piecewise linear
     knots <- readRDS("output/optimal_knots.rds")
-    knots <- knots[(knots$target_periods %in% c(104:112,0) & knots$crop %in% "hay_alfalfa"),]
+    knots <- knots[(knots$target_periods %in% c(104:112,0) & knots$crop %in% crop),]
     knots <- knots[order(knots$cv_error),]
     Tmin <- knots$Tmin[1]; Tmax <- knots$Tmax[1]
     data$DD1 <- data[,"dday00"] - data[,paste0("dday",stringr::str_pad(Tmin,pad="0",2))]
@@ -141,7 +223,7 @@ estimate_cell_base <- function(boot, cell){
     fit <- summary(fit)
     PWM.TAB <- rbind(PWM.TAB, data.frame(
       name = c("n","n_farms","n_year","r.squared","test_temp","test_ppt","test_weather","test_fe"),
-      Estimate=c(nrow(fit$model),length(unique(data$panelid)),length(unique(data$year)),fit$r.squared[1],
+      Estimate=c(nrow(fit$model),length(unique(data$fip)),length(unique(data$year)),fit$r.squared[1],
                  test1$`Chisq`[2],test2$`Chisq`[2],test3$`Chisq`[2],test4$statistic),
       StdError=NA,t_value=NA,
       p_value=c(0,0,0,0,test1$`Pr(>Chisq)`[2],test2$`Pr(>Chisq)`[2],test3$`Pr(>Chisq)`[2],test4$p.value)))
@@ -158,16 +240,30 @@ estimate_cell_base <- function(boot, cell){
     names(Relation) <- c("Piece","PieceSE"); Relation <- as.data.frame(Relation); Relation$Temp <- 1:45
     rm(Form);gc()
 
+    # County polygons + centroids (spec-invariant; also needed by the GWFE block)
+    USMUR    <- rast(file.path(study_environment$gssurgo_archive,"MURASTER_30m.tif"))
+    Counties <- vect(file.path(study_environment$usaPolygons_archive,"USA_Counties.shp"))
+    Counties <- crop(project(Counties, crs(USMUR)), ext(USMUR)); rm(USMUR);gc()
+    Counties$fip <- as.character(paste0(stringr::str_pad(as.numeric(as.character(Counties$STATEFP)),2,pad="0"),
+                                        stringr::str_pad(as.numeric(as.character(Counties$COUNTYFP)),3,pad="0")))
+    cxy <- geom(centroids(Counties))[, c("x","y")]
+    centroids_all <- data.frame(fip = Counties$fip, longitude = cxy[,"x"], latitude = cxy[,"y"], stringsAsFactors = FALSE)
+
+    # Full GWFE: per-county consensus degree-day yield slopes (NULL -> national coef)
+    beta_county <- tryCatch(.gwfe_county_betas(data, Counties, spec_gw, crop),
+                            error = function(e) NULL)
+
     # Yield impacts
     sim_climate <- data.table::rbindlist(lapply(list.files("data/prism_climate",full.names = T),
       function(file){ tryCatch(readRDS(file), error=function(e) NULL) }), fill = TRUE);gc()
-    sim_climate <- sim_climate[period %in% period]
+    per_sel <- period                       # scalar; avoid data.table column/var name clash
+    sim_climate <- sim_climate[period %in% per_sel]
     sim_climate <- as.data.frame(data.table::rbindlist(lapply(sampled_years, function(nm){
       sim_climate[sim_climate$commodity_year %in% nm,] }), fill = TRUE));gc()
     sim_climate <- sim_climate[sim_climate$commodity_year %in% climate_base,]
-    sim_climate$DD1 <- sim_climate[,"dday00"] - sim_climate[,paste0("dday",Tmin)]
-    sim_climate$DD2 <- sim_climate[,paste0("dday",Tmin)] - sim_climate[,paste0("dday",Tmax)]
-    sim_climate$DD3 <- sim_climate[,paste0("dday",Tmax)]
+    sim_climate$DD1 <- sim_climate[,"dday00"] - sim_climate[,paste0("dday",stringr::str_pad(Tmin,2,pad="0"))]
+    sim_climate$DD2 <- sim_climate[,paste0("dday",stringr::str_pad(Tmin,2,pad="0"))] - sim_climate[,paste0("dday",stringr::str_pad(Tmax,2,pad="0"))]
+    sim_climate$DD3 <- sim_climate[,paste0("dday",stringr::str_pad(Tmax,2,pad="0"))]
     setDT(sim_climate)
     sim_climate <- sim_climate[, .(DD1 = mean(DD1, na.rm = TRUE),DD2 = mean(DD2, na.rm = TRUE),DD3 = mean(DD3, na.rm = TRUE)),
                                by = c("county_fips","warming_scenario")]
@@ -209,23 +305,25 @@ estimate_cell_base <- function(boot, cell){
                                by = c("warming_scenario")]; sim_climate[, state_code := 0]; sim_climate[, county_code := 0]; sim_climate[, region := ""]
     impact_yield <- rbind(sim_climate,sim_state,sim_county,sim_region)
     setDT(impact_yield)
-    impact_yield[, impact := (exp(DD1s*PWM.COEF["DD1"] + DD2s*PWM.COEF["DD2"] + DD3s*PWM.COEF["DD3"]) - 1)*100]
     impact_yield[, fip := as.character(paste0(stringr::str_pad(as.numeric(as.character(state_code)),2,pad="0"),
                                               stringr::str_pad(as.numeric(as.character(county_code)),3,pad="0")))]
+    # Full GWFE: county rows use their OWN consensus slopes; aggregate rows
+    # (state/region/national, county_code == 0) fall back to the national PWM.COEF.
+    impact_yield[, `:=`(b_DD1 = PWM.COEF["DD1"], b_DD2 = PWM.COEF["DD2"], b_DD3 = PWM.COEF["DD3"])]
+    if(!is.null(beta_county)){
+      impact_yield <- merge(impact_yield,
+                            beta_county[, .(fip, g1 = b_DD1, g2 = b_DD2, g3 = b_DD3)],
+                            by = "fip", all.x = TRUE)
+      impact_yield[county_code != 0 & !is.na(g1), `:=`(b_DD1 = g1, b_DD2 = g2, b_DD3 = g3)]
+      impact_yield[, c("g1","g2","g3") := NULL]
+    }
+    impact_yield[, impact := (exp(DD1s*b_DD1 + DD2s*b_DD2 + DD3s*b_DD3) - 1)*100]
     impact_yield <- as.data.frame(impact_yield)
     impact_yield$warming_scenario <- paste0("cc",stringr::str_pad(as.numeric(as.character(round(impact_yield$warming_scenario*10))),2,pad="0"))
     impact_yield <- impact_yield[c("region","state_code","county_code","fip","warming_scenario","impact")]
     impact_yield <- impact_yield %>% tidyr::spread(warming_scenario, impact)
 
-    # County production panel + projected centroids (spec-invariant)
-    USMUR    <- rast(file.path(study_environment$gssurgo_archive,"MURASTER_30m.tif"))
-    Counties <- vect(file.path(study_environment$usaPolygons_archive,"USA_Counties.shp"))
-    Counties <- crop(project(Counties, crs(USMUR)), ext(USMUR)); rm(USMUR);gc()
-    Counties$fip <- as.character(paste0(stringr::str_pad(as.numeric(as.character(Counties$STATEFP)),2,pad="0"),
-                                        stringr::str_pad(as.numeric(as.character(Counties$COUNTYFP)),3,pad="0")))
-    cxy <- geom(centroids(Counties))[, c("x","y")]
-    centroids_all <- data.frame(fip = Counties$fip, longitude = cxy[,"x"], latitude = cxy[,"y"], stringsAsFactors = FALSE)
-
+    # County production panel (Counties + centroids already built above)
     sp_data <- as.data.frame(readRDS("data/spatial_representation.rds"))
     sp_data <- dplyr::inner_join(impact_yield,sp_data,by=c("state_code","county_code","fip"))
     names(sp_data)[names(sp_data) %in% "inventory"] <- "cattle"
@@ -250,19 +348,22 @@ estimate_cell_base <- function(boot, cell){
 PROD_SFX  <- c("00","05","10","15","20","25","30")
 PROD_COLS <- paste0("prod", PROD_SFX)
 
-estimate_cell_gw <- function(base, spec, bw = NULL){
+estimate_cell_gw <- function(base, spec, bw_lag = NULL, bw_gwr = NULL){
   tryCatch({
     sp_data   <- base$sp_data
     centroids <- base$centroids
 
     # --- Availability: neighbour-weighted (self-excluded) production, gwkit ---
+    # estimate_gwlag uses a FIXED-distance bandwidth (bw_lag); estimate_gwr below
+    # uses an ADAPTIVE kNN bandwidth (bw_gwr). They are different units, so each
+    # estimator selects/reuses its OWN bandwidth - they are never shared.
     src <- sp_data[, c("fip","longitude","latitude", PROD_COLS)]
     lag <- gwkit::estimate_gwlag(
       data = src, unit = "fip", value_cols = PROD_COLS,
       coords = c("longitude","latitude"), predict = centroids,
       distance_metric = spec$distance_metric, kernel = spec$kernel,
-      adaptive = FALSE, bw = bw, bw_response = "prod00", include_self = FALSE)
-    if(is.null(bw)) bw <- attr(lag, "bandwidth")
+      adaptive = FALSE, bw = bw_lag, bw_response = "prod00", include_self = FALSE)
+    if(is.null(bw_lag)) bw_lag <- attr(lag, "bandwidth")
     lag <- as.data.frame(lag)
 
     av <- dplyr::left_join(as.data.frame(centroids["fip"]),
@@ -296,12 +397,13 @@ estimate_cell_gw <- function(base, spec, bw = NULL){
       aj, unit = "fip", formula = lcattle ~ lavail00,
       coords = c("longitude","latitude"), predict = centroids,
       distance_metric = spec$distance_metric, kernel = spec$kernel,
-      adaptive = TRUE, bw = bw, terms = "lavail00")
+      adaptive = TRUE, bw = bw_gwr, terms = "lavail00")
+    if(is.null(bw_gwr)) bw_gwr <- attr(b1, "bandwidth")   # adaptive kNN bw, reused by b2
     b2 <- gwkit::estimate_gwr(
       aj, unit = "fip", formula = lcattle ~ lprod00 + lprod00_LM,
       coords = c("longitude","latitude"), predict = centroids,
       distance_metric = spec$distance_metric, kernel = spec$kernel,
-      adaptive = TRUE, bw = bw, terms = c("lprod00","lprod00_LM"))
+      adaptive = TRUE, bw = bw_gwr, terms = c("lprod00","lprod00_LM"))
     assoc <- data.table::rbindlist(list(b1, b2), fill = TRUE)
     assoc <- assoc[estimand %in% "mean"]
     assoc[, name := c(lavail00="avail00", lprod00="prod00", lprod00_LM="prod00_LM")[term]]
@@ -317,7 +419,7 @@ estimate_cell_gw <- function(base, spec, bw = NULL){
     associations <- rbind(nat_assoc, associations)
 
     list(specN = spec$specN, availability = availability,
-         associations = as.data.frame(associations), bw_opt = bw)
+         associations = as.data.frame(associations), bw_lag = bw_lag, bw_gwr = bw_gwr)
   }, error = function(e){return(NULL)})
 }
 
@@ -359,11 +461,11 @@ reduce_consensus <- function(base, spec_list, cell, boot, Counties = NULL){
 
   # gwkit consensus diagnostic on the headline coefficient (county rows)
   gwkit_avail00 <- NULL
-  if(!is.null(Counties) && exists("gw_optimal_scalar")){
+  if(!is.null(Counties) && exists("gw_consensus_scalar")){
     tryCatch({
       st <- as_[name %in% "avail00" & !fip %in% c("0","00000") & is.finite(est)]
       if(nrow(st) > 0)
-        gwkit_avail00 <- as.data.frame(gw_optimal_scalar(
+        gwkit_avail00 <- as.data.frame(gw_consensus_scalar(
           value_dt = st, unit_col = "fip", geometry = Counties,
           value_col = "est", agg_fun = stats::median, queen_smooth = FALSE))
     }, error = function(e){})
@@ -372,7 +474,8 @@ reduce_consensus <- function(base, spec_list, cell, boot, Counties = NULL){
   list(exposure=exposure, piecewise=piecewise, relation=relation, impact_yield=impact_yield,
        availability=availability, associations=associations,
        bw = data.frame(tag, specN = vapply(spec_list, function(z) z$specN, numeric(1)),
-                       bw_opt = vapply(spec_list, function(z) z$bw_opt, numeric(1)), row.names = NULL),
+                       bw_lag = vapply(spec_list, function(z) z$bw_lag, numeric(1)),
+                       bw_gwr = vapply(spec_list, function(z) z$bw_gwr, numeric(1)), row.names = NULL),
        gwkit_avail00 = gwkit_avail00)
 }
 
@@ -386,11 +489,19 @@ function(){
   bw_cache <- list()
   for(ci in 1:nrow(CELLS)){
     base <- estimate_cell_base(boot = "0000", cell = CELLS[ci, ])
-    if(is.null(base)){ bw_cache[[paste0("cell",CELLS$cellN[ci])]] <- setNames(rep(NA_real_,nrow(spec_gw)), spec_gw$specN); next }
+    if(is.null(base)){
+      bw_cache[[paste0("cell",CELLS$cellN[ci])]] <-
+        data.frame(specN = spec_gw$specN, bw_lag = NA_real_, bw_gwr = NA_real_)
+      next
+    }
     bws <- future.apply::future_lapply(1:nrow(spec_gw), function(s){
-      r <- estimate_cell_gw(base, spec_gw[s, ], bw = NULL); if(is.null(r)) NA_real_ else r$bw_opt
+      r <- estimate_cell_gw(base, spec_gw[s, ], bw_lag = NULL, bw_gwr = NULL)
+      if(is.null(r)) c(NA_real_, NA_real_) else c(r$bw_lag, r$bw_gwr)
     }, future.seed = TRUE)
-    bw_cache[[paste0("cell",CELLS$cellN[ci])]] <- setNames(unlist(bws), spec_gw$specN)
+    bw_cache[[paste0("cell",CELLS$cellN[ci])]] <- data.frame(
+      specN  = spec_gw$specN,
+      bw_lag = vapply(bws, function(z) as.numeric(z[[1]]), numeric(1)),
+      bw_gwr = vapply(bws, function(z) as.numeric(z[[2]]), numeric(1)))
     message("bandwidths cached: cell ", ci, "/", nrow(CELLS))
   }
   saveRDS(bw_cache, file = "output/gw_bandwidths.rds")
@@ -430,11 +541,17 @@ for(boot in boots){
       base <- estimate_cell_base(boot = boot, cell = cell)
       if(is.null(base)) next
 
-      bw_vec <- if(!is.null(bw_cache)) bw_cache[[paste0("cell", cell$cellN)]] else NULL
+      bw_df <- if(!is.null(bw_cache)) bw_cache[[paste0("cell", cell$cellN)]] else NULL
       spec_res <- future.apply::future_lapply(1:nrow(spec_gw), function(s){
-        bw_s <- if(!is.null(bw_vec)) suppressWarnings(as.numeric(bw_vec[as.character(spec_gw$specN[s])])) else NULL
-        if(!is.null(bw_s) && !is.finite(bw_s)) bw_s <- NULL
-        estimate_cell_gw(base, spec_gw[s, ], bw = bw_s)
+        bl <- NULL; bg <- NULL
+        if(!is.null(bw_df)){
+          row <- bw_df[bw_df$specN == spec_gw$specN[s], ]
+          if(nrow(row)){
+            bl <- suppressWarnings(as.numeric(row$bw_lag[1])); if(!isTRUE(is.finite(bl))) bl <- NULL
+            bg <- suppressWarnings(as.numeric(row$bw_gwr[1])); if(!isTRUE(is.finite(bg))) bg <- NULL
+          }
+        }
+        estimate_cell_gw(base, spec_gw[s, ], bw_lag = bl, bw_gwr = bg)
       }, future.seed = TRUE)
 
       res <- reduce_consensus(base, spec_res, cell = cell, boot = boot, Counties = Counties_geo)
@@ -445,4 +562,3 @@ for(boot in boots){
   rm(Counties_geo); gc()
 }
 #-----------------------------------------------
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     

@@ -15,14 +15,20 @@ study_environment <- readRDS("data/study_environment.rds")
 # Load rAgroClimate (sibling package) READ-ONLY. Do NOT devtools::document() here:
 # with a large SLURM array every task would regenerate the shared package man/ +
 # NAMESPACE concurrently (race/corruption) and it is slow. Document once, offline.
-devtools::load_all(file.path(dirname(dirname(getwd())),"packages/rAgroClimate"), quiet = TRUE)
+sysname <- tolower(as.character(Sys.info()[["sysname"]]))
+
+if(grepl("windows", sysname)){
+  devtools::load_all(file.path(dirname(dirname(getwd())),"packages/rAgroClimate"), quiet = TRUE)
+}else{
+  devtools::load_all(file.path(dirname(getwd()),"rAgroClimate"))
+}
 
 prism_list <- data.frame(file=list.files(study_environment$prism_archive, recursive = TRUE, full.names = TRUE))
 prism_list$date <- as.Date(gsub("prism_daily_all_4km_","",basename(prism_list$file)),format = "%Y%m%d")
 prism_list$year <- as.numeric(format(prism_list$date ,format = "%Y"))
 year_list <- unique(prism_list$year)
 year_list <- max(year_list):min(year_list)
-
+year_list <- c(1953,1957)
 # plan(multisession)
 
 # County Aggregation

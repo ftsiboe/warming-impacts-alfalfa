@@ -11,6 +11,6 @@
 #SBATCH --output=/dev/null
 
 module purge
-module load R/4.2.1-foss-2022a GDAL/3.5.0-foss-2022a PROJ/9.0.0-GCCcore-11.3.0
+module load RStudio-Server/2023.09.1+494-foss-2023a-Java-11-R-4.3.2
 R --no-save -q < scripts/005_WarmingImpactsAlfalfa_data_prism_climate.R
 

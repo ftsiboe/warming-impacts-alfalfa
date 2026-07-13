@@ -42,7 +42,7 @@ heat_thresh <- 29L         # upper-knot region: a cluster should contain countie
 heat_col <- paste0("dday", stringr::str_pad(heat_thresh, 2, pad = "0"))
 
 #-----------------------------------------------
-# Weather climatology from prism_weather      ####
+# Weather climatology from prism_weather     ####
 # prism_weather is one row per county_fips x period x commodity_year (already
 # area-weighted in 002). Filter to crop + window per file (keeps memory down),
 # then average the dday curve over years and keep interannual SDs.
@@ -80,7 +80,7 @@ clim <- merge(clim_mean, clim_sd, by = "county_fips")
 clim[, aridity := precipitation / (get(base_dd) + 1)]   # precip relative to heat
 
 #-----------------------------------------------
-# Production descriptors (spatial_Rep data)   ####
+# Production descriptors (spatial_Rep data)  ####
 sp <- as.data.frame(readRDS("data/spatial_representation.rds"))
 sp$county_fips <- stringr::str_pad(as.character(sp$fip), 5, pad = "0")
 # log-transform skewed scale variables; yield deliberately excluded (circularity)
@@ -91,7 +91,7 @@ prod <- data.table::as.data.table(sp)[, .(county_fips, area, production, invento
                                           l_area, l_prod, l_cattle)]
 
 #-----------------------------------------------
-# Assemble the feature matrix                 ####
+# Assemble the feature matrix                ####
 feat <- merge(clim, prod, by = "county_fips", all.x = TRUE)
 
 climate_features <- c(dd_cols, "precipitation", "aridity", "dday_sd", "precip_sd")
@@ -125,7 +125,7 @@ message("Feature table: ", nrow(feat), " counties x ", length(feature_cols), " f
         sum(feat$has_production), " with observed production).")
 
 #-----------------------------------------------
-# K-selection diagnostics                     ####
+# K-selection diagnostics                    ####
 # Per K: total within-cluster SS, smallest cluster size, clusters below the floor,
 # and the share of clusters containing a county that reaches the upper-knot heat
 # region (so Tmax is identifiable downstream). Silhouette when `cluster` is present.
@@ -148,7 +148,7 @@ diag <- data.table::rbindlist(lapply(K_grid, function(k){
 print(diag)
 
 #-----------------------------------------------
-# Final partition                             ####
+# Final partition                            ####
 # Auto rule (override by setting K_final): among Ks whose every cluster clears the
 # floor, take the best silhouette (or the largest K if silhouette unavailable).
 if (is.na(K_final)) {
@@ -162,7 +162,7 @@ km <- stats::kmeans(Xs, centers = K_final, nstart = n_start, iter.max = 100)
 feat[, cluster := km$cluster]
 
 #-----------------------------------------------
-# Save partition + reusable scaling/centers   ####
+# Save partition + reusable scaling/centers  ####
 out <- list(
   clusters     = as.data.frame(feat[, c("county_fips", "cluster", "has_production",
                                          feature_cols), with = FALSE]),
@@ -183,7 +183,7 @@ message("Wrote output/knot_clusters.rds: ", nrow(feat), " counties in ", K_final
 print(profile)
 
 #-----------------------------------------------
-# Stage 1: per-cluster knot + coefficient estimation ####
+# Per-cluster knot + coefficient estimation  ####
 # Incorporate the national anchor + preferred window with the cluster map:
 #   * national anchor (003) CENTERS the (Tmin,Tmax) search band (+/- knot_band);
 #   * main_period is the data-driven accumulation window for the panel;
@@ -296,7 +296,7 @@ cluster_knots <- data.table::rbindlist(lapply(clusters, function(cc){
 message("Per-cluster knots:"); print(cluster_knots)
 
 #-----------------------------------------------
-# Descriptive cluster labels (from the feature profile) ####
+# Descriptive cluster labels                 ####
 # k-means numbers clusters arbitrarily, so derive names from each cluster's mean
 # heat + moisture so they travel with the cluster id (verify against the map).
 prof_lab <- feat[, .(heat = mean(get(base_dd), na.rm = TRUE),

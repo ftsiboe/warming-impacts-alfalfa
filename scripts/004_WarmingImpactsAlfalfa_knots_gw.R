@@ -15,31 +15,17 @@ rm(list=ls(all=TRUE));gc();library(magrittr);library(future.apply);library(tidyv
 library(plm);library(terra);library(GWmodel);library(sp);library(sf)
 study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))
-sysname   <- tolower(as.character(Sys.info()[["sysname"]]))
-gwkit_src <- if (grepl("windows", sysname)) {
+sysname  <- tolower(as.character(Sys.info()[["sysname"]]))
+user     <- Sys.info()[["user"]]
+udomain  <- Sys.info()[["udomain"]]
+
+gwkit_src <- if (grepl("windows", sysname) && grepl("TSIB",toupper(udomain))) {
   file.path(dirname(dirname(getwd())), "packages/gwkit")
 } else {
   file.path(dirname(getwd()), "gwkit")
 }
 
-# INSTALL the local gwkit so parallel WORKERS load the same version as the main
-# session. devtools::load_all() injects gwkit into this process only; multisession
-# workers fall back to the installed copy (multicore/fork DOES inherit load_all, so
-# on the cluster this is belt-and-braces). Install when gwkit is missing, older than
-# the source, OR predates the consensus refactor (dev version may be unchanged, so
-# also probe the API). For a SLURM array, install gwkit ONCE before submitting so
-# all tasks find it current and skip this (avoids a concurrent-install race).
-.src_ver  <- tryCatch(as.package_version(read.dcf(file.path(gwkit_src, "DESCRIPTION"))[, "Version"]),
-                      error = function(e) NULL)
-.inst_ver <- tryCatch(utils::packageVersion("gwkit"), error = function(e) NULL)
-.has_api  <- tryCatch(
-  "gw_consensus_scalar" %in% getNamespaceExports("gwkit") &&
-    "terms" %in% names(formals(getExportedValue("gwkit", "estimate_gwr"))),
-  error = function(e) FALSE)
-if (is.null(.inst_ver) || (!is.null(.src_ver) && .inst_ver < .src_ver) || !.has_api) {
-  message("Installing local gwkit from ", gwkit_src, " ...")
-  devtools::install(gwkit_src, upgrade = FALSE, quick = TRUE, quiet = TRUE)
-}
+devtools::install(gwkit_src, upgrade = FALSE, quick = TRUE, quiet = TRUE)
 library(gwkit)
 
 set.seed(08032024)
@@ -101,11 +87,11 @@ message("County knot search: ", nrow(pairs), " candidate pairs within +/-", knot
 
 #-----------------------------------------------
 # County polygons                            ####
-USMUR    <- rast(file.path(study_environment$gssurgo_archive,"MURASTER_30m.tif"))
-Counties <- vect(file.path(study_environment$usaPolygons_archive,"USA_Counties.shp"))
-Counties <- crop(project(Counties, crs(USMUR)), ext(USMUR)); rm(USMUR); gc()
-Counties$fip <- as.character(paste0(stringr::str_pad(as.numeric(as.character(Counties$STATEFP)),2,pad="0"),
-                                    stringr::str_pad(as.numeric(as.character(Counties$COUNTYFP)),3,pad="0")))
+Counties <- urbnmapr::get_urbn_map("counties", sf = TRUE)
+Counties <- Counties[
+  !Counties$state_abbv %in% c("AK", "HI", "PR", "GU", "VI", "MP", "AS"),
+]
+Counties$fip <- Counties$county_fips
 
 #-----------------------------------------------
 # GW specifications (10 presets x 5 kernels)  ####
@@ -146,11 +132,13 @@ fit_pair <- function(tmin, tmax, spec, bw){
 }
 
 per_spec <- future.apply::future_lapply(1:nrow(spec_gw), function(s){
+  # s <- 1
+  
   spec <- spec_gw[s, ]
   bw_s <- NULL; attr_bw <<- NULL
   acc <- vector("list", nrow(pairs))
   for(pp in 1:nrow(pairs)){
-    acc[[pp]] <- fit_pair(pairs$Tmin[pp], pairs$Tmax[pp], spec, bw_s)
+    acc[[pp]] <- fit_pair(tmin = pairs$Tmin[pp], tmax = pairs$Tmax[pp], spec = spec, bw = bw_s)
     if(is.null(bw_s) && !is.null(attr_bw)) bw_s <- attr_bw   # reuse spec bandwidth
   }
   best <- data.table::rbindlist(acc, fill = TRUE)

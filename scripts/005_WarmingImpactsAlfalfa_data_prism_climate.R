@@ -12,12 +12,12 @@ rm(list=ls(all=TRUE));library(future.apply);library(data.table);library(terra)
 
 study_environment <- readRDS("data/study_environment.rds")
 
-#-----------------------------------------------
-# Rerun check                                ####
+# Rerun check
 # Stage 2 (prism_climate2) trims data/prism_climate to the degree-day columns
 # implied by the knots. If the knots have changed since those files were last
-# written (national 003, or county-level 004 optimal_knots_gw), the trim is stale
-# and stage 2 must be re-run. This block only REPORTS status - it changes nothing.
+# written (national 003, or the county-level cluster knots from 004,
+# optimal_knots_cluster), the trim is stale and stage 2 must be re-run.
+# This block only REPORTS status - it changes nothing.
 # NOTE: climate dday columns are written zero-padded to two digits
 # (aggregate_weather_variables -> "dday00".."dday45"); the +/-band search can
 # introduce single-digit thresholds, so any column lookup must pad likewise.
@@ -29,9 +29,9 @@ local({
       nk <- as.data.frame(readRDS("output/optimal_knots.rds"))
       req <- c(req, as.integer(nk$Tmin), as.integer(nk$Tmax))
     }
-    if (file.exists("output/optimal_knots_gw.rds")) {
-      gk <- as.data.frame(readRDS("output/optimal_knots_gw.rds"))
-      req <- c(req, as.integer(gk$Tmin), as.integer(gk$Tmax))
+    if (file.exists("output/optimal_knots_cluster.rds")) {
+      ck <- as.data.frame(readRDS("output/optimal_knots_cluster.rds"))
+      req <- c(req, as.integer(ck$Tmin), as.integer(ck$Tmax))
     }
     req <- sort(unique(req[is.finite(req) & req >= 0]))
 
@@ -247,13 +247,14 @@ if(Sys.getenv("SLURM_JOB_NAME") %in% "prism_climate1") {
 if(Sys.getenv("SLURM_JOB_NAME") %in% "prism_climate2") {
 
   optimal_knots <- readRDS("output/optimal_knots.rds")
-  # Retain every dday threshold implied by BOTH the national knots (003) and the
-  # county-level GW knots (004, optimal_knots_gw), so 006 can build county-specific
-  # DD. County knots search national +/- knot_band, so this is the union over the band.
+  # Retain every dday threshold implied by the national knots (003) AND the
+  # county-level cluster knots (004, optimal_knots_cluster), so 006 can build
+  # county-specific DD. Cluster knots search national +/- knot_band, so this is
+  # the union over the band.
   knot_thr <- unique(c(optimal_knots$Tmin, optimal_knots$Tmax))
-  if (file.exists("output/optimal_knots_gw.rds")) {
-    gwk <- as.data.frame(readRDS("output/optimal_knots_gw.rds"))
-    knot_thr <- unique(c(knot_thr, gwk$Tmin, gwk$Tmax))
+  if (file.exists("output/optimal_knots_cluster.rds")) {
+    clk <- as.data.frame(readRDS("output/optimal_knots_cluster.rds"))
+    knot_thr <- unique(c(knot_thr, clk$Tmin, clk$Tmax))
   }
   knot_thr <- sort(knot_thr[is.finite(knot_thr) & knot_thr >= 0])
 

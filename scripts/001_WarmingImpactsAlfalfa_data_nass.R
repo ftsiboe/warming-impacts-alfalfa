@@ -33,6 +33,7 @@ study_environment$wd <- list(
   prism_weather = file.path(fastscratch_directory,"prism_weather"),
   prism_climate = file.path(fastscratch_directory,"prism_climate"),
   knots         = file.path(fastscratch_directory,"knots"),
+  knots_gw      = file.path(fastscratch_directory,"knots_gw"),
   boots         = file.path(fastscratch_directory,"boots"),
   summary       = file.path(fastscratch_directory,"summary")
 )

@@ -339,6 +339,140 @@ res <- res[!grepl("trend",res$name),]
 write.csv(res,"output/exhibits/figure_data/regression_coefficients.csv")
 
 #-------------------------------
+# Cluster knot outcomes (map + panel ring)   ####
+# Agro-climatic cluster partition (004_..._knots_cluster.R) shown as a labeled
+# county map framed by per-cluster GROSS-MEAN outcome panels. Each panel has one
+# bar per cluster plus a full-sample reference bar. 5 columns x 4 rows, map centered.
+rm(list= ls()[!(ls() %in% c(Keep.List))])
+library(ggplot2); library(patchwork)
+
+byz <- as.data.frame(readRDS("output/optimal_knots_cluster_byzone.rds"))
+byz <- byz[order(byz$cluster), ]
+if (is.null(byz$cluster_label)) byz$cluster_label <- paste("Cluster", byz$cluster)
+clw <- as.data.frame(readRDS("output/knot_clusters.rds")$clusters)[, c("county_fips","cluster")]
+ckc <- as.data.frame(readRDS("output/optimal_knots_cluster.rds"))
+main_period <- as.integer(unique(ckc$period))[1]
+Tmin_star   <- as.integer(unique(ckc$Tmin_national))[1]
+Tmax_star   <- as.integer(unique(ckc$Tmax_national))[1]
+
+# national slope / R / cv reference (from 003)
+nk <- as.data.frame(readRDS("output/optimal_knots.rds"))
+nk <- nk[nk$crop %in% "hay_alfalfa" & nk$target_periods %in% c(104:112, 0), ]
+nk <- nk[order(nk$cv_error), ][1, ]
+
+# per-county production & cattle joined to cluster
+sp <- as.data.frame(readRDS("data/spatial_representation.rds"))
+sp$county_fips <- stringr::str_pad(as.character(sp$fip), 5, pad = "0")
+sp <- merge(sp[, c("county_fips","yield","inventory","area")], clw, by = "county_fips")
+
+# degree-day EXPOSURE means: each cluster at its own knot, full sample at national knot
+pan <- build_hay_weather_panel(crop = "hay_alfalfa", target_periods = main_period,
+                               prism_weather_directory = "data/prism_weather")
+data.table::setDT(pan); pan[, county_fips := stringr::str_pad(as.character(county_fips), 5, pad = "0")]
+pan <- merge(pan, data.table::as.data.table(clw), by = "county_fips")
+padc     <- function(x) stringr::str_pad(x, 2, pad = "0")
+dd_means <- function(dt, tmin, tmax){
+  dt <- data.table::copy(dt)
+  dt[, D1 := pmax(get("dday00") - get(paste0("dday", padc(tmin))), 0)]
+  dt[, D2 := pmax(get(paste0("dday", padc(tmin))) - get(paste0("dday", padc(tmax))), 0)]
+  dt[, D3 := pmax(get(paste0("dday", padc(tmax))), 0)]
+  c(DD1 = mean(dt$D1, na.rm = TRUE), DD2 = mean(dt$D2, na.rm = TRUE), DD3 = mean(dt$D3, na.rm = TRUE))
+}
+ddm      <- t(sapply(byz$cluster, function(cc){
+  kt <- byz[byz$cluster == cc, ]; dd_means(pan[cluster == cc], kt$Tmin, kt$Tmax) }))
+ddm_full <- dd_means(pan, Tmin_star, Tmax_star)
+ym <- tapply(sp$yield, sp$cluster, mean, na.rm = TRUE)
+cm <- tapply(sp$inventory, sp$cluster, mean, na.rm = TRUE)
+am <- tapply(sp$area, sp$cluster, sum, na.rm = TRUE)   # total alfalfa acres (1,000 acres) per cluster
+
+# one row per series (clusters + full sample); slopes scaled x1000 for legible labels
+co <- data.frame(
+  series   = byz$cluster_label,
+  Tmin = byz$Tmin, Tmax = byz$Tmax,
+  DD1_mean = ddm[, "DD1"], DD2_mean = ddm[, "DD2"], DD3_mean = ddm[, "DD3"],
+  DD1_slope = byz$DD1 * 1000, DD2_slope = byz$DD2 * 1000, DD3_slope = byz$DD3 * 1000,
+  yield = as.numeric(ym[as.character(byz$cluster)]),
+  cattle = as.numeric(cm[as.character(byz$cluster)]),
+  acres = as.numeric(am[as.character(byz$cluster)]),
+  n_county = byz$n_county, cv = byz$cv_error, R = byz$R, stringsAsFactors = FALSE)
+co <- rbind(co, data.frame(
+  series = "Full sample", Tmin = Tmin_star, Tmax = Tmax_star,
+  DD1_mean = ddm_full["DD1"], DD2_mean = ddm_full["DD2"], DD3_mean = ddm_full["DD3"],
+  DD1_slope = nk$DD1 * 1000, DD2_slope = nk$DD2 * 1000, DD3_slope = nk$DD3 * 1000,
+  yield = mean(sp$yield, na.rm = TRUE), cattle = mean(sp$inventory, na.rm = TRUE),
+  acres = sum(sp$area, na.rm = TRUE),
+  n_county = nrow(clw), cv = nk$cv_error, R = nk$R, stringsAsFactors = FALSE))
+co$series <- factor(co$series, levels = c(byz$cluster_label, "Full sample"))
+write.csv(co, "output/exhibits/figure_data/cluster_knot_outcomes.csv", row.names = FALSE)
+
+# consistent palette: clusters + a neutral grey full sample (shared by map and bars)
+base_cols <- c("#2a78d6","#eb6834","#008300","#4a3aa7","#1baf7a","#eda100","#e34948","#c05780")
+pal     <- setNames(c(base_cols[seq_len(nrow(byz))], "#8a8a86"), levels(co$series))
+map_pal <- setNames(base_cols[seq_len(nrow(byz))], as.character(byz$cluster))
+
+mk <- function(col, title, dp){
+  d <- co; d$val <- d[[col]]; d$vj <- ifelse(d$val >= 0, -0.35, 1.25)
+  ggplot(d, aes(stats::reorder(series, -val), val, fill = series)) +   # bars sorted within panel
+    geom_col(width = 0.78) +
+    geom_hline(yintercept = 0, linewidth = 0.2, colour = "grey55") +
+    geom_text(aes(label = formatC(val, format = "f", digits = dp), vjust = vj),
+              size = 2.3, colour = "grey25") +
+    scale_fill_manual(values = pal, guide = "none") +
+    scale_y_continuous(expand = expansion(mult = c(0.16, 0.20))) +
+    labs(title = title, x = NULL, y = NULL) +
+    theme_bw(base_size = 8) +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+          panel.grid = element_blank(), plot.title = element_text(size = 7.6),
+          plot.margin = margin(2, 2, 2, 2))
+}
+p_tmin  <- mk("Tmin",     "Lower knot: Tmin (°C)", 0)
+p_tmax  <- mk("Tmax",     "Upper knot: Tmax (°C)", 0)
+p_dd1v  <- mk("DD1_mean", "Degree-day (below Tmin): mean", 0)
+p_dd2v  <- mk("DD2_mean", "Degree-day (Tmin to Tmax): mean", 0)
+p_dd3v  <- mk("DD3_mean", "Degree-day (above Tmax): mean", 0)
+p_dd1s  <- mk("DD1_slope","Degree-day (below Tmin): slope (x10^3)", 2)
+p_dd2s  <- mk("DD2_slope","Degree-day (Tmin to Tmax): slope (x10^3)", 2)
+p_dd3s  <- mk("DD3_slope","Degree-day (above Tmax): slope (x10^3)", 2)
+p_yield <- mk("yield",    "Yield (tons/acre)", 1)
+p_catt  <- mk("cattle",   "Cattle inventory (1,000 head)", 0)
+p_acres <- mk("acres",    "Alfalfa acres in cluster (1,000 acres)", 0)
+p_cv    <- mk("cv",       "Cross-validation error", 2)
+p_r2    <- mk("R",        "Within-county fit (R^2)", 2)
+
+# legend as its own panel (map now carries colour only, no region text)
+leg_df <- data.frame(y = rev(seq_len(nlevels(co$series))), lab = levels(co$series))
+leg_df$wrapped <- stringr::str_wrap(leg_df$lab, 14)
+gleg <- ggplot(leg_df, aes(0, y, colour = lab)) +
+  geom_point(size = 3.2, shape = 15) +
+  geom_text(aes(x = 0.1, label = wrapped), hjust = 0, size = 2.2, colour = "grey20", lineheight = 0.85) +
+  scale_colour_manual(values = pal, guide = "none") +
+  scale_x_continuous(limits = c(-0.08, 1.4)) +
+  scale_y_continuous(expand = expansion(mult = c(0.3, 0.3))) +
+  labs(title = "Series") +
+  theme_void(base_size = 8) + theme(plot.title = element_text(size = 7.6, hjust = 0))
+
+# centered county cluster map (county fill, STATE boundaries overlaid)
+cnt_sf <- sf::st_as_sf(Counties)
+cnt_sf$county_fips <- stringr::str_pad(as.character(cnt_sf$fip), 5, pad = "0")
+cnt_sf <- merge(cnt_sf, clw, by = "county_fips", all.x = TRUE)
+st_sf  <- sf::st_as_sf(States)
+gmap <- ggplot() +
+  geom_sf(data = cnt_sf, aes(fill = factor(cluster)), colour = NA) +
+  geom_sf(data = st_sf, fill = NA, colour = "grey30", linewidth = 0.18) +
+  scale_fill_manual(values = map_pal, na.value = "grey85", guide = "none") +
+  theme_void()
+
+# 5 columns x 4 rows; map spans the centre (rows 2-3, cols 2-4)
+design <- "ABCDE
+FOOOH
+GOOOI
+JKLMN"
+fig <- gleg + p_tmin + p_tmax + p_dd1v + p_dd1s + p_dd2v + p_dd2s + p_dd3v + p_dd3s +
+  p_yield + p_catt + p_acres + p_cv + p_r2 + gmap +
+  plot_layout(design = design)
+ggsave("output/exhibits/cluster_knot_outcomes.png", fig, width = 13, height = 8, dpi = 300)
+
+#-------------------------------
 # Nonlinear Relation         ####
 rm(list= ls()[!(ls() %in% c(Keep.List))])
 relation <- as.data.frame(readRDS("output/summary/summary_relation.rds"))

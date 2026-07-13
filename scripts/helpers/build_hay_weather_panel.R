@@ -115,6 +115,11 @@ build_hay_weather_panel <- function(crop = "hay_alfalfa", target_periods = 107, 
     stringr::str_pad(county_code, pad = "0", 3)
   )]
 
+  data[, county_fips := paste0(
+    stringr::str_pad(state_code, pad = "0", 2),
+    stringr::str_pad(county_code, pad = "0", 3)
+  )]
+  
   panel <- doBy::summaryBy(commodity_year ~ fip, data = data, FUN = length)
   panel <- panel[panel$commodity_year.length >= 2, ]
   data <- data[fip %in% panel$fip]

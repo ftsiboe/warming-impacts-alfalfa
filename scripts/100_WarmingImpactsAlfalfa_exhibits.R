@@ -721,7 +721,7 @@ data <- dplyr::inner_join(data,avail,by="fip")
 res <- as.data.frame(readRDS("output/summary/summary_associations.rds"))
 res <- res[!res$fip %in% "00000",]
 res <- res[(res$crop %in% "hay_alfalfa" & res$period %in% preferred_period & res$climate_base %in% "1991_2020"),
-           c("p", "theta", "longlat", "DistName", "kernel","fip","name","est")]
+           c("fip","name","est")]
 res <- res |> tidyr::spread(name, est)
 res <- res
 res <- res[c("fip","avail00","prod00","prod00_LM")]

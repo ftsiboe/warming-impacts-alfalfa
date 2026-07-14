@@ -12,5 +12,5 @@
 
 module purge
 module load RStudio-Server/2023.09.1+494-foss-2023a-Java-11-R-4.3.2
-R --no-save -q < scripts/005_WarmingImpactsAlfalfa_data_prism_climate.R
+R --no-save -q < scripts/006_WarmingImpactsAlfalfa_data_prism_climate.R
 

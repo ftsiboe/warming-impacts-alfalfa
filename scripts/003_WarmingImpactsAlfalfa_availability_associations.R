@@ -28,7 +28,10 @@ sysname   <- tolower(as.character(Sys.info()[["sysname"]]))
 gwkit_src <- if (grepl("windows", sysname)) file.path(dirname(dirname(getwd())), "packages/gwkit") else file.path(dirname(getwd()), "packages/gwkit")
 .src_ver  <- tryCatch(as.package_version(read.dcf(file.path(gwkit_src, "DESCRIPTION"))[, "Version"]), error = function(e) NULL)
 .inst_ver <- tryCatch(utils::packageVersion("gwkit"), error = function(e) NULL)
-if (is.null(.inst_ver) || (!is.null(.src_ver) && .inst_ver < .src_ver)) {
+# probe the API so a stale install (same version, missing estimate_gwlag_kernels)
+# is refreshed even when the DESCRIPTION version was not bumped.
+.has_api  <- tryCatch("estimate_gwlag_kernels" %in% getNamespaceExports("gwkit"), error = function(e) FALSE)
+if (is.null(.inst_ver) || (!is.null(.src_ver) && .inst_ver < .src_ver) || !.has_api) {
   message("Installing local gwkit from ", gwkit_src, " ...")
   devtools::install(gwkit_src, upgrade = FALSE, quick = TRUE, quiet = TRUE)
 }

@@ -39,7 +39,7 @@ stnames$State.Name <- stnames$NAME
 stnames$State.Abbreviation <- stnames$STUSPS
 
 #-------------------------------
-# Preferred window (data-driven) ####
+# Preferred window           ####
 # Highest in-sample R-squared among the candidate windows (5-10 months) that produced
 # valid degree-day knots in 003 (i.e. appear in optimal_knots.rds for hay_alfalfa).
 # Every "preferred spec" exhibit below filters to `preferred_period` rather than a
@@ -50,7 +50,7 @@ stnames$State.Abbreviation <- stnames$STUSPS
 .r2 <- .r2
 .r2             <- .r2[.r2$crop %in% "hay_alfalfa" & .r2$climate_base %in% "1991_2020" &
                          .r2$name %in% "r.squared", ]
-preferred_period <- select_preferred_period(.r2$period, .r2$Estimate, .valid_periods, 105:110)
+preferred_period <- select_preferred_period(.r2$period, .r2$Estimate_0000, .valid_periods, 105:110)
 preferred_months <- preferred_period - 100
 preferred_lab    <- paste0(preferred_months, " months**")
 rm(.knots_all, .valid_periods, .r2)
@@ -339,7 +339,7 @@ res <- res[!grepl("trend",res$name),]
 write.csv(res,"output/exhibits/figure_data/regression_coefficients.csv")
 
 #-------------------------------
-# Cluster knot outcomes (map + panel ring)   ####
+# Cluster knot outcomes      ####
 # Agro-climatic cluster partition (004_..._knots_cluster.R) shown as a labeled
 # county map framed by per-cluster GROSS-MEAN outcome panels. Each panel has one
 # bar per cluster plus a full-sample reference bar. 5 columns x 4 rows, map centered.
@@ -718,10 +718,8 @@ avail <- avail
 avail <- avail[c("fip","level_avail")]
 data <- dplyr::inner_join(data,avail,by="fip")
 
-res <- as.data.frame(readRDS("output/summary/summary_associations.rds"))
-res <- res[!res$fip %in% "00000",]
-res <- res[(res$crop %in% "hay_alfalfa" & res$period %in% preferred_period & res$climate_base %in% "1991_2020"),
-           c("fip","name","est")]
+res <- as.data.frame(readRDS("output/availability_associations.rds")$associations)
+res <- res[!res$fip %in% "00000", c("fip","name","est")]
 res <- res |> tidyr::spread(name, est)
 res <- res
 res <- res[c("fip","avail00","prod00","prod00_LM")]
@@ -765,14 +763,11 @@ saveRDS(data,"output/regional_estimates.rds")
 #-------------------------------
 # Associations               ####
 rm(list= ls()[!(ls() %in% c(Keep.List))])
-# 20-spec consensus per county for each association coefficient, via gwkit, in place
-# of picking optimal_gw[1,]. (Loaded here too so this section can run on its own.)
+# 50-spec consensus per county for each association coefficient, from 003
+# (availability_associations -> summary_associations$est). Boot-invariant.
 
-assoc <- as.data.frame(readRDS("output/summary/summary_associations.rds"))
-assoc <- assoc[!assoc$fip %in% c("0","00000") &
-                 assoc$crop %in% "hay_alfalfa" &
-                 assoc$period %in% preferred_period &
-                 assoc$climate_base %in% "1991_2020", ]
+assoc <- as.data.frame(readRDS("output/availability_associations.rds")$associations)
+assoc <- assoc[!assoc$fip %in% c("0","00000"), ]         # 003: cross-sectional, no cell keys
 assoc <- assoc[is.finite(assoc$est), ]
 
 # one consensus surface per coefficient (avail00 / prod00 / prod00_LM), then stack
@@ -802,17 +797,19 @@ sf_object <- sf_object[!is.na(sf_object$Value), ]
 # neighbouring (spatially-lagged) production: avail00 = prod00 + prod00_LM.
 sf_object$panel <- factor(sf_object$name,
   levels = c("avail00", "prod00", "prod00_LM"),
-  labels = c("(a) Total alfalfa availability",
+  labels = c("(a) Total availability  (own + neighbouring)",
              "(b) Own-county production",
-             "(c) Neighbouring production"))
+             "(c) Neighbouring (spatial-lag) production"))
 
 Fig06 <- ggplot() +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "darkred",size = 0.2) +
   geom_sf(data = sf_object,aes(fill = Value), colour = NA,size = 0.2) +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.2) +
   scale_fill_manual(drop=FALSE, values=colorRampPalette(c("yellow","darkgreen"))(nlevels(sf_object$Value)), na.value="#EEEEEE",
-                    name="Within-panel\nquantile\n(low -> high)") +
-  labs(title= "", x = "", y = "", caption = "") +
+                    name="Elasticity\n(within-panel\nsextile, low -> high)") +
+  labs(title = "Responsiveness of cattle inventory to alfalfa supply",
+       x = "", y = "",
+       caption = "Per-county elasticity of log cattle inventory to each log supply component; classes are within-panel sextiles.") +
   guides(fill = guide_legend(ncol = 2, override.aes = list(size = 1))) +
   facet_wrap(~panel, ncol = 2) +                       # 2x2: three maps + empty 4th quadrant
   ers_theme() +
@@ -837,13 +834,11 @@ ggsave("output/exhibits/associations.png", Fig06, dpi = 600, width = 9, height =
 #-------------------------------
 # Alfalfa Availability       ####
 rm(list= ls()[!(ls() %in% c(Keep.List))])
-# 20-spec consensus of alfalfa availability (baseline, preferred window) via gwkit,
-# in place of picking optimal_gw[1,]. The all-specs facet figure is dropped.
-avail <- as.data.frame(readRDS("output/summary/summary_availability.rds"))
-avail <- avail[avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period &
-                 avail$climate_base %in% "1991_2020" & avail$warming_scenario %in% 0.0, ]
+# 50-spec consensus of baseline alfalfa availability (avail00) from the boot
+# payload (summary_availability, warming_scenario 0). The all-specs facet is dropped.
+avail <- as.data.frame(readRDS("output/availability_associations.rds")$availability)
 avail <- avail[!avail$fip %in% c("0","00000"), ]
-avail$est <- avail$Estimate
+avail$est <- avail$avail00                               # 003: baseline availability
 avail <- avail[is.finite(avail$est), ]
 
 avail_cons <- as.data.frame(gw_consensus_scalar(
@@ -863,7 +858,7 @@ Fig_avail <- ggplot() +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.2) +
   scale_fill_manual(drop=FALSE, values=c(colorRampPalette(c("yellow","darkgreen"))(length(unique(as.character(sf_object$Value))))), na.value="#EEEEEE",
                     name="1,000 tons") +
-  labs(title= "(a) Alfalfa availability (20-spec consensus)", x = "", y = "",fill ="", fill='',caption = "") +
+  labs(title= "(a) Alfalfa availability", x = "", y = "",fill ="", fill='',caption = "") +
   guides(fill = guide_legend(ncol=2,override.aes = list(size=1))) +
   ers_theme() +
   theme_bw() +
@@ -888,15 +883,11 @@ Fig_avail <- ggplot() +
 # cattle                     ####
 # "Responsiveness of cattle inventory to alfalfa availability" is the GWR coefficient
 # b_avail00, which lives in summary_associations (est where name == "avail00").
-corr_cat <- as.data.frame(readRDS("output/summary/summary_associations.rds"))
-corr_cat <- corr_cat[corr_cat$name %in% "avail00" &
-                       corr_cat$crop %in% "hay_alfalfa" &
-                       corr_cat$period %in% preferred_period &
-                       corr_cat$climate_base %in% "1991_2020", ]
-corr_cat <- corr_cat[!corr_cat$fip %in% c("0","00000"),]
+corr_cat <- as.data.frame(readRDS("output/availability_associations.rds")$associations)
+corr_cat <- corr_cat[corr_cat$name %in% "avail00" & !corr_cat$fip %in% c("0","00000"), ]
 corr_cat <- corr_cat[is.finite(corr_cat$est), ]
 
-# 20-spec consensus of the responsiveness coefficient via gwkit.
+# 50-spec consensus of the responsiveness coefficient via gwkit.
 corr_cons <- as.data.frame(gw_consensus_scalar(
   value_dt = corr_cat, unit_col = "fip", geometry = Counties,
   value_col = "est", agg_fun = stats::median, queen_smooth = FALSE))
@@ -917,8 +908,7 @@ Fig_div <- ggplot() +
                        midpoint = 0, limits = c(-lim_div, lim_div), oob = scales::squish,
                        name = "Consensus\ncoefficient") +
   labs(title = "Responsiveness of cattle inventory to alfalfa availability",
-       subtitle = "Per-county median consensus across all GW specs",
-       x = "", y = "", caption = "gwkit::gw_consensus_scalar()") +
+       x = "", y = "", caption = "") +
   ers_theme() + theme_bw() +
   theme(panel.grid = element_blank(), axis.text = element_blank(), axis.ticks = element_blank(),
         legend.position = "right", plot.title = element_text(size = 11),
@@ -931,16 +921,24 @@ message("consensus_avail00: ", nrow(sf_div), " counties; median sign-agreement =
 sf_object <- sf::st_as_sf(terra::merge(Counties, corr_cons, by = "fip"))
 sf_object <- sf_object[is.finite(sf_object$consensus), ]
 
-brks <- unique(stats::quantile(sf_object$consensus, probs = seq(0, 1, length.out = 7), na.rm = TRUE))
-sf_object$Value <- cut(sf_object$consensus, breaks = brks, include.lowest = TRUE, dig.lab = 4)
+# negative responsiveness ("< 0") is its own class; quantile-bin only the non-negative values
+pos_vals <- sf_object$consensus[sf_object$consensus >= 0]
+qb       <- unique(stats::quantile(pos_vals, probs = seq(0, 1, length.out = 6), na.rm = TRUE))
+pos_lab  <- levels(cut(pos_vals, breaks = qb, include.lowest = TRUE, dig.lab = 4))
+sf_object$Value <- factor(
+  ifelse(sf_object$consensus < 0, "< 0",
+         as.character(cut(sf_object$consensus, breaks = qb, include.lowest = TRUE, dig.lab = 4))),
+  levels = c("< 0", pos_lab))
 sf_object <- sf_object[!is.na(sf_object$Value), ]
+corr_pal <- stats::setNames(c("#4575B4", colorRampPalette(c("#FFEBCD","#800000"))(length(pos_lab))),
+                            c("< 0", pos_lab))
 
 Fig_corr <- ggplot() +
   geom_sf(data = sf_object,aes(fill = Value), colour = NA,size = 0.2) +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.2) +
-  scale_fill_manual(drop=FALSE, values=c(colorRampPalette(c("#FFEBCD","#800000"))(length(unique(as.character(sf_object$Value))))), na.value="#EEEEEE",
+  scale_fill_manual(drop=FALSE, values=corr_pal, na.value="#EEEEEE",
                     name="Percentage") +
-  labs(title= "(b) Responsiveness of cattle inventory to alfalfa availability (20-spec consensus)", x = "", y = "",fill ="", fill='',caption = "") +
+  labs(title= "(b) Responsiveness of cattle inventory to alfalfa availability", x = "", y = "",fill ="", fill='',caption = "") +
   guides(fill = guide_legend(ncol=2,override.aes = list(size=1))) +
   ers_theme() +
   theme_bw() +
@@ -972,9 +970,9 @@ Fig <- cowplot::plot_grid(
 ggsave("output/exhibits/availability_cattle.png", Fig, dpi = 600,width = 6.5, height = 9)
 
 #-------------------------------
-# Predicted county-level impacts (spatial; not in article yet)   ####
+# County-level impacts       ####
 # Yield + availability + cattle % impact by warming scenario, per county. Availability
-# and cattle are GW outcomes -> per-county 20-spec consensus per scenario via gwkit;
+# and cattle are GW outcomes -> per-county 50-spec consensus per scenario via gwkit;
 # yield is spec-invariant, so its consensus equals its value.
 rm(list = ls()[!(ls() %in% c(Keep.List))])
 
@@ -1033,7 +1031,7 @@ Fig6 <- cowplot::plot_grid(panel("(a) Alfalfa yield"),
 ggsave("output/exhibits/predicted_county_impacts.png", Fig6, dpi = 600, width = 9, height = 6)
 
 #-------------------------------
-# Predicted impacts (mean; dot plot; not in article yet)   ####
+# Predicted impacts          ####
 # National impact by hay type, season window, climate baseline, and warming scenario,
 # faceted by outcome (yield / availability / cattle). The v00 by-kernel and
 # by-distance-metric panels are dropped: 006 now reduces the 50 GW specs to one
@@ -1125,3 +1123,5 @@ Fig04 <- ggplot(data,aes(x=x,y=est,group=1)) +
 
 write.csv(data, "output/exhibits/figure_data/predicted_impacts_mean.csv", row.names = FALSE)
 ggsave("output/exhibits/predicted_impacts_mean.png", Fig04, dpi = 600, width = 10, height = 7.5)
+#-------------------------------
+

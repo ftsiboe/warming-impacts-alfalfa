@@ -9,9 +9,9 @@
 # estimated response enters the features (that would be circular and would break
 # out-of-sample coverage).
 #
-# Downstream (004b, next script): pool each cluster's counties and estimate one
+# Downstream (Stage 1, below): pool each cluster's counties and estimate one
 # (Tmin, Tmax, DD1, DD2, DD3) per cluster; attach to member counties; smooth the
-# SLOPES (knots stay at the cluster level so 005 only needs a small threshold set).
+# SLOPES (knots stay at the cluster level so 006 only needs a small threshold set).
 #
 # Output: output/knot_clusters.rds - county_fips -> cluster + features, plus the
 #         standardized centers and scaling (to assign any county later).
@@ -185,9 +185,9 @@ print(profile)
 #-----------------------------------------------
 # Per-cluster knot + coefficient estimation  ####
 # Incorporate the national anchor + preferred window with the cluster map:
-#   * national anchor (003) CENTERS the (Tmin,Tmax) search band (+/- knot_band);
+#   * national anchor (004) CENTERS the (Tmin,Tmax) search band (+/- knot_band);
 #   * main_period is the data-driven accumulation window for the panel;
-#   * each cluster is the POOLING unit - we run the 003 model (county FE + ppt +
+#   * each cluster is the POOLING unit - we run the 004 model (county FE + ppt +
 #     state trends, 5-fold CV) over the band, pick the lowest-CV valid pair, and
 #     keep its DD1-DD3 slopes. Knots/coefs attach to every county in the cluster.
 # Pooling (not per-county GW) means we can afford the state trends here.
@@ -229,7 +229,7 @@ pairs    <- data.table::CJ(Tmin = (Tmin_star - knot_band):(Tmin_star + knot_band
 pairs    <- pairs[(Tmax - Tmin) >= 3 & Tmin %in% avail_dd & Tmax %in% avail_dd]
 message("Cluster knot search: ", nrow(pairs), " candidate pairs within +/-", knot_band)
 
-# One (cluster x pair) pooled FE fit with 5-fold CV (mirrors 003)
+# One (cluster x pair) pooled FE fit with 5-fold CV (mirrors 004)
 fit_pair_cluster <- function(dc, tmin, tmax){
   tryCatch({
     d <- data.table::copy(dc)
@@ -251,7 +251,7 @@ fit_pair_cluster <- function(dc, tmin, tmax){
     res  <- data.frame(Tmin = tmin, Tmax = tmax, R = summary(fit)$r.squared["rsq"],
                        DD1 = co[["DD1"]], DD2 = co[["DD2"]], DD3 = co[["DD3"]])
 
-    # 5-fold CV error (out-of-sample SSE with the county FE added back), as in 003
+    # 5-fold CV error (out-of-sample SSE with the county FE added back), as in 004
     d[, fold := sample(1:5, .N, replace = TRUE)]
     pf <- plm::pdata.frame(as.data.frame(d), index = c("fip","commodity_year"), drop.index = TRUE)
     cv <- data.table::rbindlist(lapply(1:5, function(f){
@@ -273,13 +273,13 @@ fit_pair_cluster <- function(dc, tmin, tmax){
   }, error = function(e) NULL)
 }
 
-# Search each cluster; pick lowest CV, then max R, then widest spread (003's rule)
+# Search each cluster; pick lowest CV, then max R, then widest spread (004's rule)
 clusters <- sort(unique(pan$cluster))
 cluster_knots <- data.table::rbindlist(lapply(clusters, function(cc){
   dc   <- pan[cluster %in% cc]
   grid <- data.table::rbindlist(lapply(seq_len(nrow(pairs)), function(i)
     fit_pair_cluster(dc, pairs$Tmin[i], pairs$Tmax[i])), fill = TRUE)
-  # beneficial-then-harmful sign pattern (as in 003)
+  # beneficial-then-harmful sign pattern (as in 004)
   grid <- grid[is.finite(DD1) & is.finite(DD2) & is.finite(DD3) &
                  DD1 >= 0 & DD2 > 0 & DD3 < 0]
   if(nrow(grid) == 0)
@@ -321,7 +321,7 @@ message("Cluster labels: ", paste(cluster_labels$cluster, cluster_labels$cluster
 cluster_knots[is.na(Tmin), `:=`(Tmin = Tmin_star, Tmax = Tmax_star)]
 
 # Attach cluster (Tmin,Tmax,DD1-3) to EVERY county in the partition; key on the
-# 5-char `fip` that 005/006 expect, with the national anchor recorded for fallback.
+# 5-char `fip` that 006/007 expect, with the national anchor recorded for fallback.
 county_knots <- merge(cl_map, cluster_knots, by = "cluster", all.x = TRUE)
 county_knots[is.na(Tmin), `:=`(Tmin = Tmin_star, Tmax = Tmax_star)]
 county_knots[, `:=`(Tmin_national = Tmin_star, Tmax_national = Tmax_star,

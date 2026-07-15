@@ -6,12 +6,12 @@ study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))
 
 # ==============================================================================
-# Summarise the per-cell CONSENSUS boot files written by 005.
+# Summarise the per-cell CONSENSUS boot files written by 007.
 # ------------------------------------------------------------------------------
-# 005 now writes ONE consensus file per (boot x cell), named
+# 007 now writes ONE consensus file per (boot x cell), named
 #   consensus_<crop>_period<period>_<NAME>.rds
 # The 20/50 GW specifications have already been reduced to a per-county consensus
-# inside 005, so there are NO p/theta/longlat/DistName/kernel/specN columns here.
+# inside 007, so there are NO p/theta/longlat/DistName/kernel/specN columns here.
 # The bootstrap summary keys are just the analysis cell (crop, period,
 # climate_base) plus each block's own dimensions (fip / warming_scenario / name /
 # Temp). For every quantity we report the full-sample point estimate (boot
@@ -90,23 +90,34 @@ summary_availability <- as.data.frame(boot_summary(
 saveRDS(summary_availability, "output/summary/summary_availability.rds")
 
 #-----------------------------------------------
-# Associations                               ####
-associations <- read_block("associations")
-summary_associations <- as.data.frame(boot_summary(associations, "est", c(CELL_KEYS, "fip","name")))
+# Associations  (boot-invariant -> from 003)  ####
+# The cattle ~ availability associations no longer live in the per-boot payload;
+# they are produced once by 003_..._availability_associations.R. They are
+# boot-invariant, so we stamp the canonical cell keys and carry both a plain `est`
+# column and the boot_summary-style `est_0000/_mean/_sd/_n` (0000 = mean = the
+# estimate; sd = the across-spec dispersion) so downstream reads either schema.
+assoc003 <- as.data.frame(readRDS("output/availability_associations.rds")$associations)
+summary_associations <- data.frame(
+  crop = "hay_alfalfa", period = 107L, climate_base = "1991_2020",
+  fip = assoc003$fip, name = assoc003$name,
+  est = assoc003$est, est_0000 = assoc003$est, est_mean = assoc003$est,
+  est_sd = assoc003$est_specsd, est_n = NA_integer_,
+  se = assoc003$se, tv = assoc003$tv, pv = assoc003$pv,
+  sign_agreement = assoc003$sign_agreement,
+  row.names = NULL, stringsAsFactors = FALSE)
 saveRDS(summary_associations, "output/summary/summary_associations.rds")
 
 #-----------------------------------------------
 # Cattle shifts                              ####
 # consensus association coefficients (spread) x consensus availability
-assoc <- read_block("associations")
-assoc <- as.data.frame(assoc)[, c("boot", CELL_KEYS, "fip","name","est")]
+assoc <- as.data.frame(readRDS("output/availability_associations.rds")$associations)[, c("fip","name","est")]
 assoc$name <- paste0("b_", assoc$name)
 assoc <- assoc |> tidyr::spread(name, est)
 setDT(assoc)
 
 cattle <- read_block("availability")
 setDT(cattle)
-cattle <- cattle[assoc, on = c("boot", CELL_KEYS, "fip"), nomatch = 0]
+cattle <- cattle[assoc, on = "fip", nomatch = 0]   # associations are boot-invariant -> join on fip only
 
 for(sfx in c("05","10","15","20","25","30")){
   a <- paste0("avail",sfx); p <- paste0("prod",sfx); pl <- paste0("prod",sfx,"_LM")

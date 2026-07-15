@@ -15,7 +15,7 @@ study_environment <- readRDS("data/study_environment.rds")
 # Rerun check
 # Stage 2 (prism_climate2) trims data/prism_climate to the degree-day columns
 # implied by the knots. If the knots have changed since those files were last
-# written (national 003, or the county-level cluster knots from 004,
+# written (national 004, or the county-level cluster knots from 005,
 # optimal_knots_cluster), the trim is stale and stage 2 must be re-run.
 # This block only REPORTS status - it changes nothing.
 # NOTE: climate dday columns are written zero-padded to two digits
@@ -39,13 +39,13 @@ local({
     if (length(req) == 0) {
       message(">>> 005 rerun check: no knot files found - run 003 (and 004) first.")
     } else if (length(files) == 0) {
-      message(">>> RERUN 005: data/prism_climate is empty - run stage 1 (prism_climate1) then stage 2 (prism_climate2).")
+      message(">>> RERUN 006: data/prism_climate is empty - run stage 1 (prism_climate1) then stage 2 (prism_climate2).")
     } else {
       have <- names(readRDS(files[1]))
       have_thr <- suppressWarnings(as.integer(gsub("dday", "", grep("^dday[0-9]+$", have, value = TRUE))))
       missing <- setdiff(req, have_thr)
       if (length(missing) > 0) {
-        message(">>> RERUN 005 stage 2 (prism_climate2): data/prism_climate is missing dday thresholds: ",
+        message(">>> RERUN 006 stage 2 (prism_climate2): data/prism_climate is missing dday thresholds: ",
                 paste0("dday", missing, collapse = ", "),
                 "  (knots changed since it was last written).")
       } else {
@@ -56,6 +56,11 @@ local({
   }, error = function(e) message("005 rerun check skipped: ", conditionMessage(e)))
 })
 
+<<<<<<< HEAD:scripts/005_WarmingImpactsAlfalfa_data_prism_climate.R
+=======
+sysname <- tolower(as.character(Sys.info()[["sysname"]]))
+
+>>>>>>> 2afefe1559ec7431235c84e8b04dcabe480aa22c:scripts/006_WarmingImpactsAlfalfa_data_prism_climate.R
 if(grepl("windows", sysname)){
   devtools::load_all(file.path(dirname(dirname(getwd())),"packages/rAgroClimate"), quiet = TRUE)
 }else{
@@ -248,8 +253,8 @@ if(Sys.getenv("SLURM_JOB_NAME") %in% "prism_climate1") {
 if(Sys.getenv("SLURM_JOB_NAME") %in% "prism_climate2") {
 
   optimal_knots <- readRDS("output/optimal_knots.rds")
-  # Retain every dday threshold implied by the national knots (003) AND the
-  # county-level cluster knots (004, optimal_knots_cluster), so 006 can build
+  # Retain every dday threshold implied by the national knots (004) AND the
+  # county-level cluster knots (005, optimal_knots_cluster), so 007 can build
   # county-specific DD. Cluster knots search national +/- knot_band, so this is
   # the union over the band.
   knot_thr <- unique(c(optimal_knots$Tmin, optimal_knots$Tmax))

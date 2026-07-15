@@ -23,4 +23,4 @@
 
 module purge
 module load RStudio-Server/2023.09.1+494-foss-2023a-Java-11-R-4.3.2
-R --no-save -q < scripts/006_WarmingImpactsAlfalfa_boots.R
+R --no-save -q < scripts/007_WarmingImpactsAlfalfa_boots.R

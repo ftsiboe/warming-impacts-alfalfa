@@ -2,7 +2,7 @@
 
 ## What changed
 
-**`006_WarmingImpactsAlfalfa_boots.R`** was restructured so the SLURM array is
+**`007_WarmingImpactsAlfalfa_boots.R`** was restructured so the SLURM array is
 **by bootstrap** (one task = one boot; `--array=1-101` = boot `"0000"` + 100 draws).
 Within a task, for each analysis cell (crop × window × climate baseline) the
 spec-invariant yield model is computed **once**, then the geographically-weighted
@@ -31,11 +31,11 @@ from `output/optimal_knots_gw.rds` (004), via `estimate_gwr(panel="fip",
 time="year")` fit once per distinct selected knot pair and reduced to a per-county
 median across the 50 specs. The county yield-impact projection uses these slopes,
 falling back to the national `PWM.COEF` for aggregate rows / counties without a
-county knot. Correspondingly, **`005_..._data_prism_climate.R`** stage 2 now trims
+county knot. Correspondingly, **`006_..._data_prism_climate.R`** stage 2 now trims
 the `prism_climate` dday columns to the **union** of the national (003) and
 county-GW (004) knot thresholds so those DD can be built downstream.
 
-**`007_WarmingImpactsAlfalfa_summary.R`** reads the per-cell consensus files, drops
+**`008_WarmingImpactsAlfalfa_summary.R`** reads the per-cell consensus files, drops
 all spec columns, and reports the boot-`"0000"` point estimate plus the across-boot
 mean/sd/n keyed by `(crop, period, climate_base)`.
 

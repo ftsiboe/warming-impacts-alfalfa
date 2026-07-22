@@ -1,70 +1,46 @@
 #-----------------------------------------------
 # Preliminaries                              ####
-rm(list=ls(all=TRUE));gc();library(magrittr);library(future.apply);library(tidyverse);library(data.table)
-library(plm);library(car);library(lmtest);library(terra);library(GWmodel);library(sp);library(sf)
+rm(list=ls(all=TRUE));gc();library(magrittr);library(tidyverse);library(data.table)
+library(plm);library(car);library(lmtest);library(terra);library(sp);library(sf)
 study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))
 # devtools::document(file.path(dirname(dirname(getwd())),"packages/rAgroClimate"))
 
-# gwkit (sibling package) is the canonical GW toolkit for this project.
-sysname   <- tolower(as.character(Sys.info()[["sysname"]]))
-gwkit_src <- if (grepl("windows", sysname)) {
-  file.path(dirname(dirname(getwd())), "packages/gwkit")
-} else {
-  file.path(dirname(getwd()), "packages/gwkit")
-}
-
-# INSTALL the local gwkit so parallel WORKERS load the same version as the main
-# session. devtools::load_all() injects gwkit into this process only; multisession
-# workers fall back to the installed copy (multicore/fork DOES inherit load_all, so
-# on the cluster this is belt-and-braces). Install when gwkit is missing, older than
-# the source, OR predates the consensus refactor (dev version may be unchanged, so
-# also probe the API). For the SLURM array, install gwkit ONCE before submitting so
-# all tasks find it current and skip this (avoids a concurrent-install race).
-.src_ver  <- tryCatch(as.package_version(read.dcf(file.path(gwkit_src, "DESCRIPTION"))[, "Version"]),
-                      error = function(e) NULL)
-.inst_ver <- tryCatch(utils::packageVersion("gwkit"), error = function(e) NULL)
-.has_api  <- tryCatch(
-  "gw_consensus_scalar" %in% getNamespaceExports("gwkit") &&
-    "terms" %in% names(formals(getExportedValue("gwkit", "estimate_gwr"))),
-  error = function(e) FALSE)
-if (is.null(.inst_ver) || (!is.null(.src_ver) && .inst_ver < .src_ver) || !.has_api) {
-  message("Installing local gwkit from ", gwkit_src, " ...")
-  devtools::install(gwkit_src, upgrade = FALSE, quick = TRUE, quiet = TRUE)
-}
-library(gwkit)
+# NOTE: no geographically weighted (GW) estimation happens in this script anymore.
+# It emits ONLY the per-boot yield-impact quantities. Warming-scenario alfalfa
+# availability and the cattle associations are produced downstream by
+# 009_..._availability_warming.R (which reuses 003's fixed neighbourhood operator),
+# so gwkit / GWmodel and the 50-spec ensemble have been removed from the boot loop.
 set.seed(08032024)
 
 # ==============================================================================
 # STRUCTURE (CLUSTER variant: county knots+slopes from 005 optimal_knots_cluster)
 # ------------------------------------------------------------------------------
 # The SLURM array is BY BOOTSTRAP: one array task = one boot ("0000" + 100 draws).
-# Within a task, for every analysis cell (crop x window x climate baseline):
-#   * the spec-INVARIANT yield model is computed ONCE - the national piecewise
-#     fit, plus per-county KNOTS + boot-refit SLOPES from the CLUSTER estimator
-#     (005). County impacts use each county's own knot & cluster slope, built
-#     from prism_climate at the union of thresholds 006 retains; aggregates are
-#     acreage-weighted; then
-#   * the GW AVAILABILITY/ASSOCIATIONS quantities (cattle ~ alfalfa availability)
-#     are estimated under ALL 50 gwkit distance-metric presets x kernels (10 x 5)
-#     in parallel across cores and reduced to a per-county CONSENSUS in-task.
-# Only the consensus is written (one file per cell per boot).
+# Within a task, for every analysis cell (crop x window x climate baseline) the
+# yield model is computed ONCE - the national piecewise fit, plus per-county
+# KNOTS + boot-refit SLOPES from the CLUSTER estimator (005). County impacts use
+# each county's own knot & cluster slope, built from prism_climate at the union
+# of thresholds 006 retains; aggregates are acreage-weighted. One file per cell
+# per boot is written, carrying exposure / piecewise / relation / impact_yield /
+# sp_data.
 #
-# gwkit tools used (boot):
-#   gw_distance_metric_names()               -> the 10 distance presets
-#   estimate_gwlag()                         -> WARMING-scenario availability m(z_i)
-#                                               (neighbour-weighted, self-excluded)
-# Baseline avail00 + the cattle~availability associations (estimate_gwr) are
-# produced once by 003_..._availability_associations.R and are NOT in this loop.
-#
-# The optimal_gw cross-validation pick is REMOVED (consensus replaces it).
-# Bandwidths are precomputed once per (cell x spec) on the full sample and cached
-# in output/gw_bandwidths.rds, then reused across all boots.
+# NO geographically weighted estimation happens here. Warming-scenario alfalfa
+# availability = prodXX + m(prodXX) and the cattle~availability associations are
+# produced downstream by 009_..._availability_warming.R, which applies 003's
+# fixed (boot-invariant) neighbourhood operator to prod00*(1+impact/100) for
+# every boot at once. Baseline avail00 + associations come from
+# 003_..._availability_associations.R.
 # ==============================================================================
 
 #-----------------------------------------------
-# boot list                                  #### (run once)
-function(){
+# boot list                                  #### (build once if missing)
+# One "0000" full-sample entry + 100 year-block resamples. Deterministic given the
+# seed above, so any task that regenerates it produces the identical list. For the
+# SLURM array, generate it ONCE before submitting (the first task writes it, the
+# rest read it) to avoid a concurrent write.
+if(!file.exists("output/boot_list.rds")){
+  dir.create("output", showWarnings = FALSE, recursive = TRUE)
   boot_list <- readRDS("data/nass_hay_production.rds")
   boot_list <- list("0000"=unique(boot_list$commodity_year))
   for(bt in 1:100){
@@ -72,16 +48,6 @@ function(){
   }
   saveRDS(boot_list,file="output/boot_list.rds")
 }
-
-#-----------------------------------------------
-# GW specifications: gwkit distance presets x kernels (10 x 5 = 50)  ####
-spec_gw <- as.data.frame(data.table::rbindlist(
-  lapply(gw_distance_metric_names(), function(dm){
-    data.frame(distance_metric = dm,
-               kernel = c("gaussian","exponential","bisquare","boxcar","tricube"),
-               stringsAsFactors = FALSE)
-  }), fill = TRUE))
-spec_gw$specN <- 1:nrow(spec_gw)
 
 #-----------------------------------------------
 # Analysis cells (crop x window x climate baseline)         ####
@@ -355,107 +321,21 @@ estimate_cell_base <- function(boot, cell){
 }
 
 #-----------------------------------------------
-# GW block for one spec: WARMING-scenario availability via gwkit   ####
-# (baseline avail00 + the cattle~availability associations now live in 003)
-PROD_SFX  <- c("00","05","10","15","20","25","30")
-PROD_COLS <- paste0("prod", PROD_SFX)
-
-estimate_cell_gw <- function(base, spec, bw_lag = NULL, bw_gwr = NULL){
-  tryCatch({
-    sp_data   <- base$sp_data
-    centroids <- base$centroids
-
-    # --- Availability: neighbour-weighted (self-excluded) production, gwkit ---
-    # estimate_gwlag uses a FIXED-distance bandwidth (bw_lag); estimate_gwr below
-    # uses an ADAPTIVE kNN bandwidth (bw_gwr). They are different units, so each
-    # estimator selects/reuses its OWN bandwidth - they are never shared.
-    src <- sp_data[, c("fip","longitude","latitude", PROD_COLS)]
-    lag <- gwkit::estimate_gwlag(
-      data = src, unit = "fip", value_cols = PROD_COLS,
-      coords = c("longitude","latitude"), predict = centroids,
-      distance_metric = spec$distance_metric, kernel = spec$kernel,
-      adaptive = FALSE, bw = bw_lag, bw_response = "prod00", include_self = FALSE)
-    if(is.null(bw_lag)) bw_lag <- attr(lag, "bandwidth")
-    lag <- as.data.frame(lag)
-
-    av <- dplyr::left_join(as.data.frame(centroids["fip"]),
-                           sp_data[, c("fip", PROD_COLS)], by = "fip")
-    av <- dplyr::inner_join(av, lag, by = "fip")
-    setDT(av)
-    for(sfx in PROD_SFX){
-      p <- paste0("prod",sfx); lm_ <- paste0("prod",sfx,"_LM")
-      av[[paste0("avail",sfx)]] <- ifelse(is.na(av[[p]]),0,av[[p]]) + av[[lm_]]
-    }
-    av <- av[is.finite(avail00)]
-    keep <- c("fip", PROD_COLS, paste0(PROD_COLS,"_LM"), paste0("avail",PROD_SFX))
-    availability <- as.data.frame(av)[, keep]
-    # national mean row
-    nat <- as.data.frame(as.list(colMeans(availability[,-1], na.rm = TRUE)))
-    nat$fip <- "00000"; availability <- rbind(nat[, names(availability)], availability)
-
-    # Associations (cattle ~ availability) are boot-INVARIANT and are produced once
-    # by 003_..._availability_associations.R - not recomputed per boot here.
-    list(specN = spec$specN, availability = availability, bw_lag = bw_lag, bw_gwr = NA_real_)
-  }, error = function(e){return(NULL)})
-}
-
-#-----------------------------------------------
-# Across-spec consensus (median primary + mean retained)    ####
-reduce_consensus <- function(base, spec_list, cell, boot, Counties = NULL){
-  spec_list <- Filter(Negate(is.null), spec_list)
-  if(length(spec_list) == 0) return(NULL)
+# Assemble one boot x cell output (no GW)                    ####
+# The yield quantities from estimate_cell_base are simply tagged and written.
+# Warming-scenario availability + the cattle associations are produced downstream
+# by 009_..._availability_warming.R.
+assemble_output <- function(base, cell, boot){
+  if(is.null(base)) return(NULL)
   tag <- data.frame(boot = boot, crop = cell$crop, period = cell$period,
                     climate_base = cell$NAME, cellN = cell$cellN,
-                    n_spec = length(spec_list), stringsAsFactors = FALSE)
-
-  exposure     <- data.frame(tag, base$exposure,     row.names = NULL)
-  piecewise    <- data.frame(tag, base$piecewise,    row.names = NULL)
-  relation     <- data.frame(tag, base$relation,     row.names = NULL)
-  impact_yield <- data.frame(tag, base$impact_yield, row.names = NULL)
-
-  # availability consensus
-  av <- data.table::rbindlist(lapply(seq_along(spec_list), function(i){
-    d <- data.table::as.data.table(spec_list[[i]]$availability); d[, .specN := i]; d }), fill = TRUE)
-  av_cols <- setdiff(names(av), c("fip",".specN"))
-  av_med  <- av[, lapply(.SD, stats::median, na.rm=TRUE), by=fip, .SDcols=av_cols]
-  av_mn   <- av[, lapply(.SD, mean, na.rm=TRUE), by=fip, .SDcols=av_cols]
-  data.table::setnames(av_mn, av_cols, paste0(av_cols,"_specmean"))
-  availability <- data.frame(tag, as.data.frame(merge(av_med, av_mn, by="fip")), row.names = NULL)
-
-  # Associations are produced once by 003 (boot-invariant); not recomputed here.
-
-  list(exposure=exposure, piecewise=piecewise, relation=relation, impact_yield=impact_yield,
-       availability=availability,
-       bw = data.frame(tag, specN = vapply(spec_list, function(z) z$specN, numeric(1)),
-                       bw_lag = vapply(spec_list, function(z) z$bw_lag, numeric(1)), row.names = NULL))
-}
-
-#-----------------------------------------------
-# Bandwidth cache (run once, before the array)              ####
-# Precomputes bw per (cell x spec) on the FULL sample (boot "0000") and caches
-# them in output/gw_bandwidths.rds for reuse across all boots.
-function(){
-  nw <- max(1, as.numeric(Sys.getenv("SLURM_CPUS_PER_TASK", unset = "1")))
-  if(nw > 1) future::plan(future::multicore, workers = nw) else future::plan(future::sequential)
-  bw_cache <- list()
-  for(ci in 1:nrow(CELLS)){
-    base <- estimate_cell_base(boot = "0000", cell = CELLS[ci, ])
-    if(is.null(base)){
-      bw_cache[[paste0("cell",CELLS$cellN[ci])]] <-
-        data.frame(specN = spec_gw$specN, bw_lag = NA_real_, bw_gwr = NA_real_)
-      next
-    }
-    bws <- future.apply::future_lapply(1:nrow(spec_gw), function(s){
-      r <- estimate_cell_gw(base, spec_gw[s, ], bw_lag = NULL, bw_gwr = NULL)
-      if(is.null(r)) c(NA_real_, NA_real_) else c(r$bw_lag, r$bw_gwr)
-    }, future.seed = TRUE)
-    bw_cache[[paste0("cell",CELLS$cellN[ci])]] <- data.frame(
-      specN  = spec_gw$specN,
-      bw_lag = vapply(bws, function(z) as.numeric(z[[1]]), numeric(1)),
-      bw_gwr = vapply(bws, function(z) as.numeric(z[[2]]), numeric(1)))
-    message("bandwidths cached: cell ", ci, "/", nrow(CELLS))
-  }
-  saveRDS(bw_cache, file = "output/gw_bandwidths.rds")
+                    stringsAsFactors = FALSE)
+  list(
+    exposure     = data.frame(tag, base$exposure,     row.names = NULL),
+    piecewise    = data.frame(tag, base$piecewise,    row.names = NULL),
+    relation     = data.frame(tag, base$relation,     row.names = NULL),
+    impact_yield = data.frame(tag, base$impact_yield, row.names = NULL),
+    sp_data      = data.frame(tag, base$sp_data,      row.names = NULL))
 }
 
 #-----------------------------------------------
@@ -466,22 +346,9 @@ if(!is.na(as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID")))){
   boots <- boots[as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))]
 }
 
-bw_cache <- tryCatch(readRDS("output/gw_bandwidths.rds"), error = function(e) NULL)
-nw <- max(1, as.numeric(Sys.getenv("SLURM_CPUS_PER_TASK", unset = "1")))
-if(nw > 1) future::plan(future::multicore, workers = nw) else future::plan(future::sequential)
-
 #-----------------------------------------------
-# Estimations (boot x cell; 50 specs in parallel; consensus)  ####
+# Estimations (boot x cell; yield impacts only, no GW)       ####
 for(boot in boots){
-  Counties_geo <- tryCatch({
-    USMUR <- rast(file.path(study_environment$gssurgo_archive,"MURASTER_30m.tif"))
-    Cty   <- vect(file.path(study_environment$usaPolygons_archive,"USA_Counties.shp"))
-    Cty   <- crop(project(Cty, crs(USMUR)), ext(USMUR))
-    Cty$fip <- as.character(paste0(stringr::str_pad(as.numeric(as.character(Cty$STATEFP)),2,pad="0"),
-                                   stringr::str_pad(as.numeric(as.character(Cty$COUNTYFP)),3,pad="0")))
-    rm(USMUR); Cty
-  }, error = function(e) NULL)
-
   for(ci in 1:nrow(CELLS)){
     tryCatch({
       cell <- CELLS[ci, ]
@@ -492,24 +359,10 @@ for(boot in boots){
       base <- estimate_cell_base(boot = boot, cell = cell)
       if(is.null(base)) next
 
-      bw_df <- if(!is.null(bw_cache)) bw_cache[[paste0("cell", cell$cellN)]] else NULL
-      spec_res <- future.apply::future_lapply(1:nrow(spec_gw), function(s){
-        bl <- NULL; bg <- NULL
-        if(!is.null(bw_df)){
-          row <- bw_df[bw_df$specN == spec_gw$specN[s], ]
-          if(nrow(row)){
-            bl <- suppressWarnings(as.numeric(row$bw_lag[1])); if(!isTRUE(is.finite(bl))) bl <- NULL
-            bg <- suppressWarnings(as.numeric(row$bw_gwr[1])); if(!isTRUE(is.finite(bg))) bg <- NULL
-          }
-        }
-        estimate_cell_gw(base, spec_gw[s, ], bw_lag = bl, bw_gwr = bg)
-      }, future.seed = TRUE)
-
-      res <- reduce_consensus(base, spec_res, cell = cell, boot = boot, Counties = Counties_geo)
+      res <- assemble_output(base, cell = cell, boot = boot)
       if(!is.null(res)) saveRDS(res, file = out_put_file)
-      rm(base, spec_res, res); gc()
+      rm(base, res); gc()
     }, error = function(e){return(NULL)})
   }
-  rm(Counties_geo); gc()
 }
 #-----------------------------------------------

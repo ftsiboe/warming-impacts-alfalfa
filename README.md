@@ -52,8 +52,14 @@ Sourced from the repository root, in order:
 - `004_WarmingImpactsAlfalfa_knots.R` — national endogenous degree-day thresholds.
 - `005_WarmingImpactsAlfalfa_knots_cluster.R` — agro-climatic cluster county knots + slopes.
 - `006_WarmingImpactsAlfalfa_data_prism_climate.R` — climate baselines / scenarios.
-- `007_WarmingImpactsAlfalfa_boots_cluster.R` — bootstrap estimation.
-- `008_WarmingImpactsAlfalfa_summary.R` — summary objects (`output/summary/`).
+- `007_WarmingImpactsAlfalfa_boots_cluster.R` — bootstrap estimation of yield
+  impacts (no GW; emits impacts only).
+- `008_WarmingImpactsAlfalfa_summary.R` — summary objects for the yield-side
+  quantities + associations pass-through (`output/summary/`).
+- `009_WarmingImpactsAlfalfa_availability_warming.R` — warming-scenario alfalfa
+  availability & cattle shifts, applying 003's fixed neighbourhood lag to every
+  boot's impacts outside the loop (`output/summary/summary_availability.rds`,
+  `summary_cattle.rds`).
 - `100_WarmingImpactsAlfalfa_exhibits.R` — figures & tables (`output/exhibits/`).
 - `200_WarmingImpactsAlfalfa_study_releases.R` — packaged release archive.
 
@@ -62,7 +68,7 @@ The `job00*.sbatch` files run the heavier steps on an HPC/SLURM cluster.
 ## Reproducing
 
 To reproduce results from the shipped `data/` and `output/`, run
-`003` → `004` → `005` → `007` → `008` → `100`, then build the article (below).
+`003` → `004` → `005` → `007` → `008` → `009` → `100`, then build the article (below).
 Scripts `001`, `002`, and `006` rebuild the processed panels / climate scenarios
 from **external raw source archives** (NASS Quick Stats, PRISM, gSSURGO) on the
 author's machine and are not required when the processed `data/` is present.

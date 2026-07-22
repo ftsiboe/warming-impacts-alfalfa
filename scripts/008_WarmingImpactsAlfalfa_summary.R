@@ -1,21 +1,25 @@
 #-----------------------------------------------
 # Preliminaries                              ####
-rm(list=ls(all=TRUE));gc();library(magrittr);library(future.apply);library(tidyverse);library(data.table)
-library(plm);library(car);library(lmtest);library(terra);library(GWmodel);library(sp);library(sf)
+rm(list=ls(all=TRUE));gc();library(magrittr);library(tidyverse);library(data.table)
+library(plm);library(car);library(lmtest);library(terra);library(sp);library(sf)
 study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))
 
 # ==============================================================================
-# Summarise the per-cell CONSENSUS boot files written by 007.
+# Summarise the per-cell boot files written by 007 (yield-side quantities only).
 # ------------------------------------------------------------------------------
-# 007 now writes ONE consensus file per (boot x cell), named
-#   consensus_<crop>_period<period>_<NAME>.rds
-# The 20/50 GW specifications have already been reduced to a per-county consensus
-# inside 007, so there are NO p/theta/longlat/DistName/kernel/specN columns here.
-# The bootstrap summary keys are just the analysis cell (crop, period,
-# climate_base) plus each block's own dimensions (fip / warming_scenario / name /
-# Temp). For every quantity we report the full-sample point estimate (boot
-# "0000") together with the across-boot mean / sd / n over the 100 draws.
+# 007 writes ONE file per (boot x cell), named
+#   consensus_cluster_<crop>_period<period>_<NAME>.rds
+# carrying exposure / piecewise / relation / impact_yield (+ sp_data). No GW runs
+# in 007 anymore, so there is no availability / cattle / bandwidth block here:
+# warming-scenario availability and cattle shifts are summarised downstream by
+# 009_..._availability_warming.R. The associations pass-through below is a
+# boot-invariant copy of 003's output.
+#
+# The bootstrap summary keys are the analysis cell (crop, period, climate_base)
+# plus each block's own dimensions (fip / warming_scenario / name / Temp). For
+# every quantity we report the full-sample point estimate (boot "0000") together
+# with the across-boot mean / sd / n over the 100 draws.
 # ==============================================================================
 
 CELL_KEYS <- c("crop","period","climate_base")
@@ -74,20 +78,11 @@ summary_impact_yield <- as.data.frame(boot_summary(
 saveRDS(summary_impact_yield, "output/summary/summary_impact_yield.rds")
 
 #-----------------------------------------------
-# Alfalfa availability                       ####
-availability <- read_block("availability")
-setDT(availability)
-# percentage change in availability under each warming scenario
-for(sfx in c("05","10","15","20","25","30"))
-  availability[[paste0("avail",sfx)]] <- ((availability[[paste0("avail",sfx)]]/availability$avail00)-1)*100
-availability <- availability[, c("boot", CELL_KEYS, "fip",
-                                 "avail00","avail05","avail10","avail15","avail20","avail25","avail30"), with = FALSE]
-availability <- as.data.frame(availability) |>
-  tidyr::gather(warming_scenario, Estimate, c("avail00","avail05","avail10","avail15","avail20","avail25","avail30"))
-availability$warming_scenario <- as.numeric(gsub("[^0-9]","",availability$warming_scenario))/10
-summary_availability <- as.data.frame(boot_summary(
-  availability, "Estimate", c(CELL_KEYS, "fip","warming_scenario")))
-saveRDS(summary_availability, "output/summary/summary_availability.rds")
+# Alfalfa availability + cattle shifts        ####
+# Moved to 009_..._availability_warming.R: both need the GW neighbourhood lag,
+# which is now applied once OUTSIDE the bootstrap. 007 no longer emits an
+# `availability` block, so nothing is read here. 009 writes
+# summary_availability.rds and summary_cattle.rds.
 
 #-----------------------------------------------
 # Associations  (boot-invariant -> from 003)  ####
@@ -107,39 +102,4 @@ summary_associations <- data.frame(
   row.names = NULL, stringsAsFactors = FALSE)
 saveRDS(summary_associations, "output/summary/summary_associations.rds")
 
-#-----------------------------------------------
-# Cattle shifts                              ####
-# consensus association coefficients (spread) x consensus availability
-assoc <- as.data.frame(readRDS("output/availability_associations.rds")$associations)[, c("fip","name","est")]
-assoc$name <- paste0("b_", assoc$name)
-assoc <- assoc |> tidyr::spread(name, est)
-setDT(assoc)
-
-cattle <- read_block("availability")
-setDT(cattle)
-cattle <- cattle[assoc, on = "fip", nomatch = 0]   # associations are boot-invariant -> join on fip only
-
-for(sfx in c("05","10","15","20","25","30")){
-  a <- paste0("avail",sfx); p <- paste0("prod",sfx); pl <- paste0("prod",sfx,"_LM")
-  cattle[[paste0("cattleA",sfx)]] <- ((cattle[[a]]/cattle$avail00)-1)*100*cattle$b_avail00
-  cattle[[paste0("cattleB",sfx)]] <- ((cattle[[p]]/cattle$prod00)-1)*100*cattle$b_prod00
-  cattle[[paste0("cattleC",sfx)]] <- ((cattle[[p]]/cattle$prod00)-1)*100*cattle$b_prod00 +
-                                     ((cattle[[pl]]/cattle$prod00_LM)-1)*100*cattle$b_prod00_LM
-}
-cattle <- as.data.frame(cattle)[, c("boot", CELL_KEYS, "fip", names(cattle)[grepl("cattle",names(cattle))])]
-cattle <- cattle |> tidyr::gather(warming_scenario, Estimate, names(cattle)[grepl("cattle",names(cattle))])
-cattle$cattle <- gsub("[0-9]","",cattle$warming_scenario)
-cattle$warming_scenario <- as.numeric(gsub("[^0-9]","",cattle$warming_scenario))/10
-cattle <- cattle |> tidyr::spread(cattle, Estimate)
-
-summary_cattle <- Reduce(function(a,b) merge(a,b,by=c(CELL_KEYS,"fip","warming_scenario"),all=TRUE),
-  list(boot_summary(cattle, "cattleA", c(CELL_KEYS,"fip","warming_scenario")),
-       boot_summary(cattle, "cattleB", c(CELL_KEYS,"fip","warming_scenario")),
-       boot_summary(cattle, "cattleC", c(CELL_KEYS,"fip","warming_scenario"))))
-saveRDS(as.data.frame(summary_cattle), "output/summary/summary_cattle.rds")
-
-#-----------------------------------------------
-# Bandwidths (diagnostic)                     ####
-bw <- read_block("bw")
-saveRDS(as.data.frame(bw), "output/summary/summary_bw.rds")
 #-----------------------------------------------

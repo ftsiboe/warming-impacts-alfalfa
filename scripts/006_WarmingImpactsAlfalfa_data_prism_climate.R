@@ -56,11 +56,8 @@ local({
   }, error = function(e) message("005 rerun check skipped: ", conditionMessage(e)))
 })
 
-<<<<<<< HEAD:scripts/005_WarmingImpactsAlfalfa_data_prism_climate.R
-=======
 sysname <- tolower(as.character(Sys.info()[["sysname"]]))
 
->>>>>>> 2afefe1559ec7431235c84e8b04dcabe480aa22c:scripts/006_WarmingImpactsAlfalfa_data_prism_climate.R
 if(grepl("windows", sysname)){
   devtools::load_all(file.path(dirname(dirname(getwd())),"packages/rAgroClimate"), quiet = TRUE)
 }else{

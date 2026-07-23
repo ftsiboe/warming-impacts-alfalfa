@@ -20,7 +20,7 @@
 #          output/summary/summary_cattle.rds
 #-----------------------------------------------
 rm(list = ls(all = TRUE)); gc()
-library(magrittr); library(tidyverse); library(data.table); library(terra)
+library(tidyverse); library(data.table); library(terra)
 study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))
 

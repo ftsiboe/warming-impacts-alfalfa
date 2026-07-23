@@ -9,7 +9,7 @@
 #SBATCH --array=1-101
 #SBATCH --mail-user=ftsiboe@hotmail.com
 #SBATCH --mail-type=ALL
-#SBATCH --output=/dev/null
+##SBATCH --output=/dev/null
 
 # One array task = one bootstrap ("0000" + 100 draws => 101 tasks).
 # Within a task the 50 GW specs (10 gwkit distance presets x 5 kernels) are run
@@ -23,4 +23,4 @@
 
 module purge
 module load RStudio-Server/2023.09.1+494-foss-2023a-Java-11-R-4.3.2
-R --no-save -q < scripts/007_WarmingImpactsAlfalfa_boots.R
+R --no-save -q < scripts/007_WarmingImpactsAlfalfa_boots_cluster.R

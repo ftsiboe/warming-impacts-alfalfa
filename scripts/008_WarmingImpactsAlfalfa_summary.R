@@ -1,6 +1,6 @@
 #-----------------------------------------------
 # Preliminaries                              ####
-rm(list=ls(all=TRUE));gc();library(magrittr);library(tidyverse);library(data.table)
+rm(list=ls(all=TRUE));gc();library(tidyverse);library(data.table)
 library(plm);library(car);library(lmtest);library(terra);library(sp);library(sf)
 study_environment <- readRDS("data/study_environment.rds")
 invisible(lapply(list.files("scripts/helpers", pattern = "[.]R$", full.names = TRUE), source))

@@ -25,7 +25,7 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
 objs <- jsonlite::fromJSON("article_objects.json")
 ```
 
-Francis Tsiboe\*, Research Assistant Professor / Senior Research Economist, Agricultural Risk Policy Center, North Dakota State University
+Francis Tsiboe\*, Program Leader, Agricultural Risk Policy Center, North Dakota State University
 
 Hannah Shear, Assistant Professor, Department of Agricultural Economics, Oklahoma State University
 

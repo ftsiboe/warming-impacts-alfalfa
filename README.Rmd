@@ -15,8 +15,11 @@ county-level alfalfa (and other hay) yields across the contiguous United States,
 and how projected warming is likely to shift the geographic distribution of
 alfalfa production.
 
-**Author:** Francis Tsiboe (ftsiboe@hotmail.com), Agricultural Risk Policy Center,
-North Dakota State University.
+**Authors:** Francis Tsiboe (ftsiboe@hotmail.com; corresponding), Agricultural Risk
+Policy Center, North Dakota State University; Hannah Shear and Walker Davis, Department
+of Agricultural Economics, Oklahoma State University; Jesse Tack, Department of
+Agricultural Economics, Kansas State University; and Jisang Yu, Department of Food and
+Resource Economics, Korea University.
 
 ## What the study does
 
@@ -44,32 +47,32 @@ output/        Generated results: exhibits/ (figures + figure_data), summary/,
 fastscratch/   Pipeline scratch (all intermediates; git-ignored, disposable).
 ```
 
-`data/`, `output/`, and `fastscratch/` are **git-ignored** — research data and
+`data/`, `output/`, and `fastscratch/` are **git-ignored**: research data and
 generated outputs are distributed via GitHub Releases (piggyback), not committed.
 
 ## Analysis pipeline (`scripts/`)
 
 Sourced from the repository root, in order:
 
-- `000_initialize_WarmingImpactsAlfalfa.R` — sources helpers, creates the output
+- `000_initialize_WarmingImpactsAlfalfa.R`: sources helpers, creates the output
   tree, sets options/seed.
-- `001_WarmingImpactsAlfalfa_data_nass.R` — assemble NASS production & inventory.
-- `002_WarmingImpactsAlfalfa_data_prism_weather.R` — county PRISM weather panel.
-- `003_WarmingImpactsAlfalfa_availability_associations.R` — geographically weighted
-  cattle–forage availability & associations, computed once (boot-invariant).
-- `004_WarmingImpactsAlfalfa_knots.R` — national endogenous degree-day thresholds.
-- `005_WarmingImpactsAlfalfa_knots_cluster.R` — agro-climatic cluster county knots + slopes.
-- `006_WarmingImpactsAlfalfa_data_prism_climate.R` — climate baselines / scenarios.
-- `007_WarmingImpactsAlfalfa_boots_cluster.R` — bootstrap estimation of yield
+- `001_WarmingImpactsAlfalfa_data_nass.R`: assemble NASS production & inventory.
+- `002_WarmingImpactsAlfalfa_data_prism_weather.R`: county PRISM weather panel.
+- `003_WarmingImpactsAlfalfa_availability_associations.R`: geographically weighted
+  cattle-forage availability & associations, computed once (boot-invariant).
+- `004_WarmingImpactsAlfalfa_knots.R`: national endogenous degree-day thresholds.
+- `005_WarmingImpactsAlfalfa_knots_cluster.R`: agro-climatic cluster county knots + slopes.
+- `006_WarmingImpactsAlfalfa_data_prism_climate.R`: climate baselines / scenarios.
+- `007_WarmingImpactsAlfalfa_boots_cluster.R`: bootstrap estimation of yield
   impacts (no GW; emits impacts only).
-- `008_WarmingImpactsAlfalfa_summary.R` — summary objects for the yield-side
+- `008_WarmingImpactsAlfalfa_summary.R`: summary objects for the yield-side
   quantities + associations pass-through (`output/summary/`).
-- `009_WarmingImpactsAlfalfa_availability_warming.R` — warming-scenario alfalfa
+- `009_WarmingImpactsAlfalfa_availability_warming.R`: warming-scenario alfalfa
   availability & cattle shifts, applying 003's fixed neighbourhood lag to every
   boot's impacts outside the loop (`output/summary/summary_availability.rds`,
   `summary_cattle.rds`).
-- `100_WarmingImpactsAlfalfa_exhibits.R` — figures & tables (`output/exhibits/`).
-- `200_WarmingImpactsAlfalfa_study_releases.R` — packaged release archive.
+- `100_WarmingImpactsAlfalfa_exhibits.R`: figures & tables (`output/exhibits/`).
+- `200_WarmingImpactsAlfalfa_study_releases.R`: packaged release archive.
 
 The `job00*.sbatch` files run the heavier steps on an HPC/SLURM cluster.
 
@@ -86,10 +89,10 @@ author's machine and are not required when the processed `data/` is present.
 Every number quoted inline is computed once from the analysis outputs and read into
 the prose from a single JSON file, so nothing is hard-coded:
 
-- `scripts/300_article_helpers.R` — paths, constants, formatting helpers.
-- `scripts/301_article_objects.R` — builds `narrative/article_objects.json`.
-- `scripts/302_render_article.R` — knits the master to `.docx` + `.html`.
-- `scripts/run_article.R` — runs 300 → 301 → 302.
+- `scripts/300_article_helpers.R`: paths, constants, formatting helpers.
+- `scripts/301_article_objects.R`: builds `narrative/article_objects.json`.
+- `scripts/302_render_article.R`: knits the master to `.docx` + `.html`.
+- `scripts/run_article.R`: runs 300 → 301 → 302.
 
 Prose is split into `narrative/sections/*.Rmd` (`00_abstract`, `01_introduction`,
 `02_data`, `03_methods`, `04_results`, `05_discussion`, `08_conclusion`,

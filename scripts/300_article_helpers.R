@@ -63,6 +63,22 @@ sig_stars   <- function(p) ifelse(p < 0.01, "***", ifelse(p < 0.05, "**",
                             ifelse(p < 0.10, "*", "")))
 en_dash     <- "–"
 
+# State postal abbreviation -> full name. Prose must spell state names out; two-letter
+# USPS codes are acceptable only in maps, figure labels, and code. Keys in
+# objs$impact_state and objs$spatial$state are USPS codes, so any data-driven sentence
+# that surfaces a state from an exhibit must pass it through fmt_state() (e.g.
+# `r fmt_state("SD")` -> "South Dakota"). Vectorized; DC is added because base R
+# state.name omits it. Stops the build on an unknown code rather than printing it raw.
+.state_lookup <- c(stats::setNames(state.name, state.abb),
+                   DC = "District of Columbia")
+fmt_state <- function(x) {
+  out <- unname(.state_lookup[toupper(as.character(x))])
+  if (any(is.na(out)))
+    stop("fmt_state: unknown state abbreviation(s): ",
+         paste(x[is.na(out)], collapse = ", "), call. = FALSE)
+  out
+}
+
 # Guardrail: stop the build if any value destined for the prose is missing.
 assert_present <- function(x, what) {
   if (length(x) == 0 || any(is.na(x)))

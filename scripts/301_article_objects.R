@@ -265,6 +265,13 @@ names(coef_tab) <- c(" ", paste0(WINDOW_MONTHS, " months"))
 names(coef_tab)[.pref_idx + 1] <- paste0(WINDOW_MONTHS[.pref_idx], " months††")
 coef <- list(tab = coef_tab)
 
+# Range of the harmful-heat (DD3) coefficient across the six accumulation windows (x1000),
+# for the Table 2 robustness statement. DD3_window_max = least negative, DD3_window_min =
+# most negative; both stay negative and significant across all windows.
+dd3_win <- vapply(WINDOW_PERIODS, function(per) cget("DD3", per, "Estimate") * 1000, numeric(1))
+relation$DD3_window_max <- round(max(dd3_win), 2)
+relation$DD3_window_min <- round(min(dd3_win), 2)
+
 ## --- Summary statistics (Table 1) ------------------------------------------
 t1 <- rd_csv("table1.csv")
 sget <- function(v) t1$mean[t1$variable == v][1]
@@ -306,6 +313,45 @@ summ$tab <- rbind(
     `Mean (Standard deviation)` = c(formatC(summ$n_counties, big.mark = ","),
                                     formatC(n_obs, format = "d", big.mark = ",")),
     check.names = FALSE))
+
+# Standard deviations (dispersion) for the Table 1 discussion, so the prose can name the
+# most variable series rather than only their means.
+summ$area_sd   <- round(sd_get("area"), 2)
+summ$prod_sd   <- round(sd_get("production"), 2)
+summ$yield_sd  <- round(sd_get("yield"), 2)
+summ$cattle_sd <- round(sd_get("cattle"), 2)
+summ$ppt_sd    <- round(sd_get("ppt"), 2)
+summ$dd1_sd    <- round(sd_get("DD1"), 2)
+summ$dd2_sd    <- round(sd_get("DD2"), 2)
+summ$dd3_sd    <- round(sd_get("DD3"), 2)
+
+## --- Agro-climatic cluster outcomes (Figure 6) -----------------------------
+# Per-cluster estimated thresholds, harmful-heat exposure/slope, and productivity from the
+# panel behind Figure 6 (output/exhibits/figure_data/cluster_knot_outcomes.csv, built by
+# 100_..._exhibits.R). Exposed so the Results discussion of Figure 6 quotes the cluster
+# numbers instead of hard-coding them. DD3_slope is already on the x10^3 scale shown in the
+# figure's beta_3 panel.
+ck <- rd_csv("cluster_knot_outcomes.csv")
+ck_slug <- c("Southern Hot Long-Season"  = "southern",
+             "Northern Cool-Continental" = "northern",
+             "Humid Temperate Transition"= "humid",
+             "Arid Southwest Desert"     = "desert",
+             "Full sample"               = "full")
+clusters <- list()
+for (i in seq_len(nrow(ck))) {
+  sl <- unname(ck_slug[ck$series[i]])
+  if (is.na(sl)) next
+  clusters[[sl]] <- list(
+    name     = ck$series[i],
+    Tmin     = round(ck$Tmin[i]),
+    Tmax     = round(ck$Tmax[i]),
+    dd3_mean = round(ck$DD3_mean[i], 0),
+    slope    = round(ck$DD3_slope[i], 2),   # harmful-heat slope, x10^3 (matches figure)
+    yield    = round(ck$yield[i], 2),
+    cattle   = round(ck$cattle[i], 1),
+    acres    = round(ck$acres[i], 0),
+    rsq      = round(ck$R[i], 2))
+}
 
 ## --- Spatial production means by state and region (spatial_Rep.csv) --------
 sr <- as.data.table(rd_csv("spatial_Rep.csv"))
@@ -384,7 +430,7 @@ objs <- list(
   summary = summ, knots = knots, window_selection = window_selection,
   relation = relation, coef = coef, impact = impact,
   impact_state = impact_state, county_share = county_share, spatial = spatial,
-  baseline = baseline, window = window, assoc = assoc,
+  baseline = baseline, window = window, assoc = assoc, clusters = clusters,
   impact_avail = impact_avail, impact_cattle = impact_cattle, livestock = livestock)
 
 jsonlite::write_json(objs, OBJECTS_JSON, pretty = TRUE, auto_unbox = TRUE, digits = NA)

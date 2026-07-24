@@ -334,6 +334,12 @@ res <- as.data.frame(readRDS("output/summary/summary_piecewise.rds"))
 res <- res
 res <- res[res$crop %in% "hay_alfalfa",]
 res <- res[res$climate_base %in% "1991_2020",]
+# 008/boot_summary now emits suffixed columns: point estimate = *_0000, bootstrap SE = *_sd.
+# t_value / p_value are no longer stored, so reconstruct them from the bootstrap SE.
+res$Estimate <- res$Estimate_0000
+res$StdError <- res$Estimate_sd
+res$t_value  <- res$Estimate / res$StdError
+res$p_value  <- 2 * stats::pnorm(-abs(res$t_value))
 res <- res[res$period %in% c(0,104:112),c("name","period","Estimate","StdError","t_value","p_value")]
 res <- res[!grepl("trend",res$name),]
 write.csv(res,"output/exhibits/figure_data/regression_coefficients.csv")
@@ -343,8 +349,18 @@ write.csv(res,"output/exhibits/figure_data/regression_coefficients.csv")
 # Agro-climatic cluster partition (004_..._knots_cluster.R) shown as a labeled
 # county map framed by per-cluster GROSS-MEAN outcome panels. Each panel has one
 # bar per cluster plus a full-sample reference bar. 5 columns x 4 rows, map centered.
+#
+# Layout (clockwise from top-left; see cluster_knot_outcomes mock v6):
+#   row1:  Equation | Area   | Yield  | Cattle | DD1
+#   row2:  R^2      |  <----   MAP   ---->      | DD2
+#   row3:  CV       |  <----   MAP   ---->      | DD3
+#   row4:  b3       | b2     | b1     | Tmax   | Tmin
+# Cluster identity comes from a series-key inset in the map's left margin (colours,
+# incl. the Full-sample grey); every framing panel carries a small coloured symbol
+# chip [DD1]/[b2]/[Tmin]/... tying it to the equation.
 rm(list= ls()[!(ls() %in% c(Keep.List))])
-library(ggplot2); library(patchwork)
+if (!requireNamespace("ggtext", quietly = TRUE)) install.packages("ggtext", repos = "https://cloud.r-project.org")
+library(ggplot2); library(patchwork); library(ggtext)
 
 byz <- as.data.frame(readRDS("output/optimal_knots_cluster_byzone.rds"))
 byz <- byz[order(byz$cluster), ]
@@ -410,7 +426,12 @@ base_cols <- c("#2a78d6","#eb6834","#008300","#4a3aa7","#1baf7a","#eda100","#e34
 pal     <- setNames(c(base_cols[seq_len(nrow(byz))], "#8a8a86"), levels(co$series))
 map_pal <- setNames(base_cols[seq_len(nrow(byz))], as.character(byz$cluster))
 
-mk <- function(col, title, dp){
+# coloured symbol chips (ggtext markdown) that tie each panel to the equation:
+# blue for model variables / knots, rust for the estimated coefficients (betas).
+chipv <- function(s) paste0("<span style='color:#173a72'>**[", s, "]**</span> ")
+chipb <- function(s) paste0("<span style='color:#7a3413'>**[", s, "]**</span> ")
+
+mk <- function(col, title, dp, chip = ""){
   d <- co; d$val <- d[[col]]; d$vj <- ifelse(d$val >= 0, -0.35, 1.25)
   ggplot(d, aes(stats::reorder(series, -val), val, fill = series)) +   # bars sorted within panel
     geom_col(width = 0.78) +
@@ -419,57 +440,101 @@ mk <- function(col, title, dp){
               size = 2.3, colour = "grey25") +
     scale_fill_manual(values = pal, guide = "none") +
     scale_y_continuous(expand = expansion(mult = c(0.16, 0.20))) +
-    labs(title = title, x = NULL, y = NULL) +
+    labs(title = paste0(chip, title), x = NULL, y = NULL) +
     theme_bw(base_size = 8) +
     theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
-          panel.grid = element_blank(), plot.title = element_text(size = 7.6),
+          panel.grid = element_blank(),
+          plot.title = ggtext::element_markdown(size = 7.6),
           plot.margin = margin(2, 2, 2, 2))
 }
-p_tmin  <- mk("Tmin",     "Lower knot: Tmin (°C)", 0)
-p_tmax  <- mk("Tmax",     "Upper knot: Tmax (°C)", 0)
-p_dd1v  <- mk("DD1_mean", "Degree-day (below Tmin): mean", 0)
-p_dd2v  <- mk("DD2_mean", "Degree-day (Tmin to Tmax): mean", 0)
-p_dd3v  <- mk("DD3_mean", "Degree-day (above Tmax): mean", 0)
-p_dd1s  <- mk("DD1_slope","Degree-day (below Tmin): slope (x10^3)", 2)
-p_dd2s  <- mk("DD2_slope","Degree-day (Tmin to Tmax): slope (x10^3)", 2)
-p_dd3s  <- mk("DD3_slope","Degree-day (above Tmax): slope (x10^3)", 2)
-p_yield <- mk("yield",    "Yield (tons/acre)", 1)
+p_tmin  <- mk("Tmin",     "Lower knot: Tmin (°C)", 0, chipv("Tmin"))
+p_tmax  <- mk("Tmax",     "Upper knot: Tmax (°C)", 0, chipv("Tmax"))
+p_dd1v  <- mk("DD1_mean", "Degree-day (below Tmin): mean", 0, chipv("DD1"))
+p_dd2v  <- mk("DD2_mean", "Degree-day (Tmin to Tmax): mean", 0, chipv("DD2"))
+p_dd3v  <- mk("DD3_mean", "Degree-day (above Tmax): mean", 0, chipv("DD3"))
+p_dd1s  <- mk("DD1_slope","Degree-day (below Tmin): slope (x10^3)", 2, chipb("&beta;<sub>1</sub>"))
+p_dd2s  <- mk("DD2_slope","Degree-day (Tmin to Tmax): slope (x10^3)", 2, chipb("&beta;<sub>2</sub>"))
+p_dd3s  <- mk("DD3_slope","Degree-day (above Tmax): slope (x10^3)", 2, chipb("&beta;<sub>3</sub>"))
+p_yield <- mk("yield",    "Yield (tons/acre)", 1, chipv("&#563;"))
 p_catt  <- mk("cattle",   "Cattle inventory (1,000 head)", 0)
 p_acres <- mk("acres",    "Alfalfa acres in cluster (1,000 acres)", 0)
-p_cv    <- mk("cv",       "Cross-validation error", 2)
-p_r2    <- mk("R",        "Within-county fit (R^2)", 2)
+p_cv    <- mk("cv",       "Cross-validation error", 2, chipv("CV"))
+p_r2    <- mk("R",        "Within-county fit (R^2)", 2, chipv("R<sup>2</sup>"))
 
-# legend as its own panel (map now carries colour only, no region text)
-leg_df <- data.frame(y = rev(seq_len(nlevels(co$series))), lab = levels(co$series))
-leg_df$wrapped <- stringr::str_wrap(leg_df$lab, 14)
-gleg <- ggplot(leg_df, aes(0, y, colour = lab)) +
-  geom_point(size = 3.2, shape = 15) +
-  geom_text(aes(x = 0.1, label = wrapped), hjust = 0, size = 2.2, colour = "grey20", lineheight = 0.85) +
-  scale_colour_manual(values = pal, guide = "none") +
-  scale_x_continuous(limits = c(-0.08, 1.4)) +
-  scale_y_continuous(expand = expansion(mult = c(0.3, 0.3))) +
-  labs(title = "Series") +
-  theme_void(base_size = 8) + theme(plot.title = element_text(size = 7.6, hjust = 0))
+# equation panel occupies the top-left corner (the sequence starts to its right)
+eq_md <- paste0(
+  "<span style='color:#173a72;font-size:9pt'>**Estimated model &#183; county FE (within)**</span><br><br>",
+  "<span style='font-size:10.5pt'>ln&#8202;y<sub>it</sub> = &beta;<sub>1</sub>DD1 + &beta;<sub>2</sub>DD2 + &beta;<sub>3</sub>DD3 + ",
+  "&gamma;<sub>1</sub>ppt + &gamma;<sub>2</sub>ppt<sup>2</sup> + state trends + &alpha;<sub>i</sub> + &epsilon;<sub>it</sub></span><br><br>",
+  "<span style='font-size:7.5pt;color:#5a5a5a'>DD1 = max(0, D<sub>0</sub> &#8722; D<sub>Tmin</sub>)<br>",
+  "DD2 = max(0, D<sub>Tmin</sub> &#8722; D<sub>Tmax</sub>)<br>",
+  "DD3 = max(0, D<sub>Tmax</sub>)<br>",
+  "knots (Tmin, Tmax) estimated per agro-climatic cluster</span>")
+p_eqn <- ggplot(data.frame(x = 0, y = 0.5, label = eq_md)) +
+  ggtext::geom_textbox(aes(x, y, label = label),
+                       width = unit(0.98, "npc"), height = unit(0.96, "npc"),
+                       hjust = 0, vjust = 0.5, halign = 0, valign = 0.5, size = 2.8,
+                       box.colour = "#173a72", fill = "#f4f7fd", box.r = unit(2, "pt"),
+                       box.padding = unit(c(4, 5, 4, 5), "pt")) +
+  scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+  theme_void()
 
 # centered county cluster map (county fill, STATE boundaries overlaid)
 cnt_sf <- sf::st_as_sf(Counties)
 cnt_sf$county_fips <- stringr::str_pad(as.character(cnt_sf$fip), 5, pad = "0")
 cnt_sf <- merge(cnt_sf, clw, by = "county_fips", all.x = TRUE)
 st_sf  <- sf::st_as_sf(States)
+
+# cluster identity comes from the series-key inset (below), not in-region labels.
+# Extend the x-range to the LEFT so an empty band opens up for that key inset.
+.bb <- sf::st_bbox(cnt_sf); .dx <- .bb[["xmax"]] - .bb[["xmin"]]; .dy <- .bb[["ymax"]] - .bb[["ymin"]]
 gmap <- ggplot() +
   geom_sf(data = cnt_sf, aes(fill = factor(cluster)), colour = NA) +
   geom_sf(data = st_sf, fill = NA, colour = "grey30", linewidth = 0.18) +
   scale_fill_manual(values = map_pal, na.value = "grey85", guide = "none") +
+  coord_sf(xlim = c(.bb[["xmin"]] - 0.42 * .dx, .bb[["xmax"]] + 0.02 * .dx),
+           ylim = c(.bb[["ymin"]] - 0.04 * .dy, .bb[["ymax"]] + 0.04 * .dy), expand = FALSE) +
   theme_void()
 
-# 5 columns x 4 rows; map spans the centre (rows 2-3, cols 2-4)
+# series key inset (INSIDE the map) — cluster colours + the Full-sample grey, so the
+# grey reference bar that appears in every framing panel has a legend.
+key_df <- data.frame(y = rev(seq_along(levels(co$series))), lab = levels(co$series))
+key_df$lab <- factor(key_df$lab, levels = levels(co$series))
+gkey <- ggplot(key_df, aes(0, y, fill = lab)) +
+  geom_point(shape = 22, size = 4.4, colour = "grey30", stroke = 0.3) +
+  geom_text(aes(x = 0.30, label = lab), hjust = 0, size = 3.7, colour = "grey15") +
+  scale_fill_manual(values = pal, guide = "none") +
+  scale_x_continuous(limits = c(-0.3, 3.4), expand = c(0, 0)) +
+  scale_y_continuous(expand = expansion(mult = c(0.10, 0.24))) +
+  labs(title = "Series key") +
+  theme_void(base_size = 9) +
+  theme(plot.title = element_text(size = 8.5, hjust = 0, colour = "grey30", face = "bold"),
+        plot.background = element_rect(fill = grDevices::adjustcolor("white", 0.92),
+                                       colour = "grey70", linewidth = 0.25),
+        plot.margin = margin(3, 4, 3, 4))
+# key inset lives in the empty band opened on the map's LEFT by the coord_sf xlim
+# extension above; nudge these four fractions if it overlaps the map on your CRS.
+gmap <- gmap + patchwork::inset_element(gkey, left = 0.0, bottom = 0.24,
+                                        right = 0.29, top = 0.80, align_to = "panel")
+
+# 5 columns x 4 rows; map spans the centre (rows 2-3, cols 2-4).
+# Clockwise from the top-left equation (see the layout comment at the top of this
+# block). Plots are added in the alphabetical order of the design letters, so each
+# letter's cell = the panel in that add-position:
+#   A eqn  | B area | C yield | D cattle | E DD1
+#   F R^2  |   O  (map + key inset)      | G DD2
+#   H CV   |   O                         | I DD3
+#   J b3   | K b2   | L b1    | M Tmax   | N Tmin
 design <- "ABCDE
-FOOOH
-GOOOI
+FOOOG
+HOOOI
 JKLMN"
-fig <- gleg + p_tmin + p_tmax + p_dd1v + p_dd1s + p_dd2v + p_dd2s + p_dd3v + p_dd3s +
-  p_yield + p_catt + p_acres + p_cv + p_r2 + gmap +
-  plot_layout(design = design)
+fig <- p_eqn + p_acres + p_yield + p_catt + p_dd1v +
+       p_r2  + p_dd2v  + p_cv    + p_dd3v +
+       p_dd3s + p_dd2s + p_dd1s  + p_tmax + p_tmin +
+       patchwork::wrap_elements(gmap) +
+       plot_layout(design = design)
 ggsave("output/exhibits/cluster_knot_outcomes.png", fig, width = 13, height = 8, dpi = 300)
 
 #-------------------------------
@@ -479,12 +544,17 @@ relation <- as.data.frame(readRDS("output/summary/summary_relation.rds"))
 relation <- relation
 relation <- relation[relation$crop %in% "hay_alfalfa",]
 relation <- relation[relation$climate_base %in% "1991_2020",]
+# boot_summary suffixes: point estimate = Piece_0000, bootstrap SE = Piece_sd
+relation$Piece   <- relation$Piece_0000
+relation$PieceSE <- relation$Piece_sd
 relation <- relation[relation$period %in% c(105:110),c("crop","period","Temp","Piece","PieceSE")]
 
 exposure <- as.data.frame(readRDS("output/summary/summary_exposure.rds"))
 exposure <- exposure
 exposure <- exposure[exposure$crop %in% "hay_alfalfa",]
 exposure <- exposure[exposure$climate_base %in% "1991_2020",]
+# boot_summary suffixes: point estimate = exp_0000 (exp_sd already carries the bootstrap SE)
+exposure$exp <- exposure$exp_0000
 exposure <- exposure[exposure$period %in% c(105:110),c("crop","period","Temp","exp","exp_sd")]
 
 Result <- dplyr::inner_join(exposure,relation,by=c("Temp","crop","period"))
@@ -566,7 +636,7 @@ ggsave("output/exhibits/Nonlinear_Relation.png", fig, dpi = 600,width = 6.7, hei
 # Impacts mean               ####
 rm(list= ls()[!(ls() %in% c(Keep.List))])
 data <- as.data.frame(readRDS("output/summary/summary_impact_yield.rds"))
-data$est <- data$Estimate
+data$est <- data$Estimate_0000   # boot_summary point estimate (was bare `Estimate`)
 data$se  <- data$Estimate_sd
 data <- data[data$county_code %in% 0,]
 data <- data[data$state_code %in% 0,]
@@ -615,7 +685,9 @@ data_yeary$x <- max(data_windy$x) + c(1:nrow(data_yeary)) + 2
 data_mainy$x <- max(data_yeary$x) + c(1:nrow(data_mainy)) + 2
 
 datay <- rbind(data_cropy,data_mainy,data_yeary,data_windy)
-datay <- unique(datay[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","warming_scenario","x_name","x")])
+# consensus schema has one national row per cell/scenario, so per-spec keys
+# (p/theta/longlat/DistName/kernel) no longer exist — drop them from the position map.
+datay <- unique(datay[c("crop","period","climate_base","warming_scenario","x_name","x")])
 data <- rbind(data_crop,data_main,data_year,data_wind)
 data <- dplyr::inner_join(data,datay)
 
@@ -641,65 +713,11 @@ ggsave("output/exhibits/impacts_mean.png", Fig04, dpi = 600,width = 6.7, height 
 #ggsave("output/exhibits/impacts_mean.png", Fig04, dpi = 600,width = 7, height = 6)
 
 #-------------------------------
-# Impacts Spatial            ####
-rm(list= ls()[!(ls() %in% c(Keep.List))])
-data <- as.data.frame(readRDS("output/summary/summary_impact_yield.rds"))
-data$est <- data$Estimate
-data$se  <- data$Estimate_sd
-data <- data[!data$county_code %in% 0,]
-data <- data[(data$crop %in% "hay_alfalfa" & data$period %in% preferred_period & data$climate_base %in% "1991_2020"),]
-data <- data[c("p","theta","longlat","DistName","kernel","crop","period","climate_base","warming_scenario","fip","est","se")]
-
-data$SimCat<-factor(data$warming_scenario,levels=unique(data$warming_scenario),
-                    labels = paste0("+",format(unique(data$warming_scenario), nsmall = 1)," °C"))
-
-merged_spat_vector <- terra::merge(Counties, data, by="fip")
-sf_object <- sf::st_as_sf(merged_spat_vector)
-
-cutlist <- unique(c(min(sf_object$est,na.rm=T),0,max(sf_object$est,na.rm=T),
-                    quantile(unique(sf_object$est[! sf_object$est %in% c(NA,Inf,-Inf,NaN) | sf_object$est <0.0001]), probs = seq(0.1,1,0.10))))
-
-sf_object$Value <- cut(sf_object$est,cutlist)
-table(sf_object$Value)
-sf_object <- sf_object[!is.na(sf_object$Value), ]
-
-Fig <- ggplot() +
-  geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "darkred",size = 0.1) +
-  geom_sf(data = sf_object,aes(fill = Value), colour = NA,size = 0.2) +
-  geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.1) +
-  scale_fill_manual("Percentage",drop=FALSE, values=c(colorRampPalette(c("red","yellow"))(length(unique(as.character(sf_object$Value)))-2),
-                                         "green","darkgreen"), na.value="#EEEEEE",
-                    name="") +
-  labs(title= "", x = "", y = "",fill ="Percentage",caption = "") +
-  guides(fill = guide_legend(nrow=3)) +
-  facet_wrap(vars(SimCat),ncol=2) +
-  ers_theme() +
-  theme_bw() +
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.ticks.y = element_blank(),
-        plot.title=element_text(size=8),
-        legend.position="bottom",
-        legend.background = element_blank(),
-        legend.key.size = unit(0.2,"cm"),
-        legend.text=element_text(size=4),
-        legend.title=element_text(size=6),
-        axis.title.y = element_blank(),
-        axis.title.x = element_blank(),
-        axis.text.x = element_blank(), #
-        axis.text.y = element_blank(),
-        strip.text = element_text(size=9),
-        strip.background = element_blank())+coord_sf()
-
-ggsave(paste0("output/exhibits/spatial_impact_yield.png"), Fig, dpi = 600,width = 6.7, height = 7.5)
-
-#-------------------------------
 # Regional estimates         ####
 rm(list= ls()[!(ls() %in% c(Keep.List))]);gc()
 
 yield <- as.data.frame(readRDS("output/summary/summary_impact_yield.rds"))
-yield$impact_yield <- yield$Estimate
+yield$impact_yield <- yield$Estimate_0000   # boot_summary point estimate (was bare `Estimate`)
 yield$fip<-as.character(paste0(stringr::str_pad(as.numeric(as.character(yield$state_code)), 2, pad = "0"),
                                stringr::str_pad(as.numeric(as.character(yield$county_code)), 3, pad = "0")))
 yield <- yield[!yield$state_code %in% 0,]
@@ -709,12 +727,14 @@ yield <- yield
 yield <- yield[c("state_code","county_code","fip","impact_yield")]
 data <- yield
 
-avail <- as.data.frame(readRDS("output/summary/summary_availability.rds"))
-avail$level_avail <- avail$Estimate
-avail <- avail[!avail$fip %in% "0000",]
-avail <- avail[avail$warming_scenario %in% c(0.0),]
-avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period & avail$climate_base %in% "1991_2020"),]
-avail <- avail
+# Baseline availability LEVEL. 009 no longer emits a warming_scenario==0.0 row in
+# summary_availability (it holds % change for scenarios 0.5-3.0 only), so read the
+# baseline level (avail00) from 003's availability_associations payload instead.
+avail <- as.data.frame(readRDS("output/availability_associations.rds")$availability)
+avail$level_avail <- avail$avail00
+avail$fip <- stringr::str_pad(as.character(avail$fip), 5, pad = "0")
+avail <- avail[!avail$fip %in% c("0","0000","00000"),]
+avail <- avail[is.finite(avail$level_avail),]
 avail <- avail[c("fip","level_avail")]
 data <- dplyr::inner_join(data,avail,by="fip")
 
@@ -727,7 +747,7 @@ names(res) <- c("fip","b_avail00","b_prod00","b_prod00_LM")
 data <- dplyr::inner_join(data,res,by="fip")
 
 avail <- as.data.frame(readRDS("output/summary/summary_availability.rds"))
-avail$impact_avail <- avail$Estimate
+avail$impact_avail <- avail$Estimate_0000   # % change under +1C (boot_summary point estimate)
 avail <- avail[!avail$fip %in% "0000",]
 avail <- avail[avail$warming_scenario %in% 1.0,]
 avail <- avail[(avail$crop %in% "hay_alfalfa" & avail$period %in% preferred_period & avail$climate_base %in% "1991_2020"),]
@@ -736,12 +756,12 @@ avail <- avail[c("fip","impact_avail")]
 data <- dplyr::inner_join(data,avail,by="fip")
 
 catle <- as.data.frame(readRDS("output/summary/summary_cattle.rds"))
-catle$impact_cattle <- catle$Estimate
 catle <- catle[!catle$fip %in% "0000",]
 catle <- catle[catle$warming_scenario %in% 1.0,]
 catle <- catle[(catle$crop %in% "hay_alfalfa" & catle$period %in% preferred_period & catle$climate_base %in% "1991_2020"),]
-catle <- catle
-catle <- catle[c("fip","cattleA","cattleB","cattleC")]
+# boot_summary suffixes each cattle channel: cattleA_0000 / cattleB_0000 / cattleC_0000
+catle <- catle[c("fip","cattleA_0000","cattleB_0000","cattleC_0000")]
+names(catle) <- c("fip","cattleA","cattleB","cattleC")
 data <- dplyr::inner_join(data,catle,by="fip")
 
 data <- dplyr::inner_join(data,stnames[c("state_code","State.Name","State.Abbreviation" )],by="state_code")
@@ -998,37 +1018,42 @@ rm(list = ls()[!(ls() %in% c(Keep.List))])
 }
 
 impacts <- rbind(
-  .impact_consensus("output/summary/summary_impact_yield.rds", "Estimate", "(a) Alfalfa yield"),
-  .impact_consensus("output/summary/summary_availability.rds", "Estimate", "(b) Alfalfa availability"),
-  .impact_consensus("output/summary/summary_cattle.rds",       "cattleA",  "(c) Cattle inventory"))
+  .impact_consensus("output/summary/summary_impact_yield.rds", "Estimate_0000", "(a) Alfalfa yield"),
+  .impact_consensus("output/summary/summary_availability.rds", "Estimate_0000", "(b) Alfalfa availability"),
+  .impact_consensus("output/summary/summary_cattle.rds",       "cattleA_0000",  "(c) Cattle inventory"))
 impacts$SimCat <- factor(impacts$warming_scenario, levels = .scen,
                          labels = paste0("+", format(.scen, nsmall = 1), " °C"))
 write.csv(impacts, "output/exhibits/figure_data/predicted_impacts_consensus.csv", row.names = FALSE)
 
-lim <- stats::quantile(abs(impacts$est), 0.98, na.rm = TRUE)
-panel <- function(outcome) {
-  sfo <- sf::st_as_sf(terra::merge(Counties, impacts[impacts$outcome %in% outcome, ], by = "fip"))
+# One standalone map PER OUTCOME (yield / availability / cattle), each faceted by
+# warming scenario, on a continuous diverging scale centred at 0. Each figure gets
+# its OWN symmetric 98%-clip limit (outcomes differ in magnitude). These three files
+# replace the stacked predicted_county_impacts.png and the quantile-binned
+# spatial_impact_yield.png.
+outcome_fig <- function(outcome, file){
+  d   <- impacts[impacts$outcome %in% outcome & is.finite(impacts$est), ]
+  lim <- stats::quantile(abs(d$est), 0.98, na.rm = TRUE)
+  sfo <- sf::st_as_sf(terra::merge(Counties, d, by = "fip"))
   sfo <- sfo[is.finite(sfo$est), ]
-  ggplot() +
+  fig <- ggplot() +
     geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "grey85", size = 0.1) +
     geom_sf(data = sfo, aes(fill = est), colour = NA, size = 0.2) +
     geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA, size = 0.1) +
     scale_fill_gradient2(low = "#B2182B", mid = "#F7F7F7", high = "#2166AC", midpoint = 0,
                          limits = c(-lim, lim), oob = scales::squish, name = "% impact") +
     labs(title = outcome, x = "", y = "", caption = "") +
-    facet_wrap(vars(SimCat), nrow = 1) +
+    facet_wrap(vars(SimCat), ncol = 3) +
     ers_theme() + theme_bw() +
     theme(panel.grid = element_blank(), axis.ticks = element_blank(),
-          plot.title = element_text(size = 9), legend.position = "right",
-          legend.key.width = unit(0.3, "cm"), legend.text = element_text(size = 6),
-          axis.text = element_blank(), strip.text = element_text(size = 7),
+          plot.title = element_text(size = 11), legend.position = "right",
+          legend.key.width = unit(0.35, "cm"), legend.text = element_text(size = 7),
+          axis.text = element_blank(), strip.text = element_text(size = 9),
           strip.background = element_blank()) + coord_sf()
+  ggsave(file, fig, dpi = 600, width = 11, height = 7)
 }
-Fig6 <- cowplot::plot_grid(panel("(a) Alfalfa yield"),
-                           panel("(b) Alfalfa availability"),
-                           panel("(c) Cattle inventory"),
-                           ncol = 1, align = "v")
-ggsave("output/exhibits/predicted_county_impacts.png", Fig6, dpi = 600, width = 9, height = 6)
+outcome_fig("(a) Alfalfa yield",        "output/exhibits/predicted_county_impacts_yield.png")
+outcome_fig("(b) Alfalfa availability", "output/exhibits/predicted_county_impacts_availability.png")
+outcome_fig("(c) Cattle inventory",     "output/exhibits/predicted_county_impacts_cattle.png")
 
 #-------------------------------
 # Predicted impacts          ####
@@ -1041,7 +1066,7 @@ rm(list = ls()[!(ls() %in% c(Keep.List))])
 .common <- c("crop","period","climate_base","warming_scenario","est","se","outcome")
 
 yield <- data.table::as.data.table(readRDS("output/summary/summary_impact_yield.rds"))
-yield$est <- yield$Estimate; yield$se <- yield$Estimate_sd
+yield$est <- yield$Estimate_0000; yield$se <- yield$Estimate_sd   # boot_summary point estimate
 yield <- yield[county_code %in% 0 & state_code %in% 0 & region %in% "", ]
 yield$outcome <- "(a) Alfalfa yield"
 yield <- as.data.frame(yield)[, .common]
@@ -1060,8 +1085,8 @@ yield <- as.data.frame(yield)[, .common]
   ag[, outcome := outcome_label]
   as.data.frame(ag)[, .common]
 }
-avail  <- .national("output/summary/summary_availability.rds", "Estimate", "(b) Alfalfa availability")
-cattle <- .national("output/summary/summary_cattle.rds",       "cattleA",  "(c) Cattle inventory")
+avail  <- .national("output/summary/summary_availability.rds", "Estimate_0000", "(b) Alfalfa availability")
+cattle <- .national("output/summary/summary_cattle.rds",       "cattleA_0000",  "(c) Cattle inventory")
 
 data <- rbind(yield, avail, cattle)
 data$warming_scenario <- suppressWarnings(as.numeric(as.character(data$warming_scenario)))

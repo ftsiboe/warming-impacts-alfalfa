@@ -122,10 +122,11 @@ Counties <- terra::crop(Counties, terra::ext(USMUR))
 Counties$fip<-as.character(paste0(stringr::str_pad(as.numeric(as.character(Counties$STATEFP)), 2, pad = "0"),
                                   stringr::str_pad(as.numeric(as.character(Counties$COUNTYFP)), 3, pad = "0")))
 
-plotlist <- list("area"=list("(a) Alfalfa Acres Harvested",c("cornsilk","saddlebrown"),"1,000 acres"),
-                 "production"=list("(b) Alfalfa Production Output",c("yellow","darkgreen"),"1,000 tons"),
-                 "yield"=list("(c) Alfalfa Yield",c("lavender","midnightblue"),"1,000 tons/acre"),
-                 "inventory"=list("(d) Cattle inventory (including calves) as of first of january",c("#D8BFD8","#4B0082"),"1,000 head"))
+# NDSU-branded single-hue sequential ramps (light -> dark), one per panel
+plotlist <- list("area"=list("(a) Alfalfa Acres Harvested",c("#D7E5C8","#00583D"),"1,000 acres"),
+                 "production"=list("(b) Alfalfa Production Output",c("#BED73B","#003524"),"1,000 tons"),
+                 "yield"=list("(c) Alfalfa Yield",c("#9DD9F7","#0F374B"),"1,000 tons/acre"),
+                 "inventory"=list("(d) Cattle inventory (including calves) as of first of january",c("#FEF389","#B83E27"),"1,000 head"))
 
 fig_fxn <- function(varp){
   # varp <- "inventory"
@@ -191,7 +192,7 @@ data$DD3 <- ifelse(data$DD3<0,0,data$DD3)
 
 # Degree Days 3
 DD1 <- ggplot(data=data, aes(x=commodity_year, y=DD1,group = commodity_year)) +
-  geom_boxplot(color="blue",outlier.size=0.5) +
+  geom_boxplot(color="#00583D",outlier.size=0.5) +
   labs(title=paste0("(b) Degree-day (below ",Tmin,"°C)"),
        x="\nYear",
        y ="inches\n",
@@ -213,7 +214,7 @@ ggsave("output/exhibits/DD1.png", DD1, dpi = 600,width = 9, height = 6)
 
 # Degree Days 2
 DD2 <- ggplot(data=data, aes(x=commodity_year, y=DD2,group = commodity_year)) +
-  geom_boxplot(color="blue",outlier.size=0.5) +
+  geom_boxplot(color="#00583D",outlier.size=0.5) +
   labs(title=paste0("(c) Degree-day (",Tmin,"°C to ",Tmax,"°C)"),
        x="\nYear",
        y ="inches\n",
@@ -235,7 +236,7 @@ ggsave("output/exhibits/DD2.png", DD2, dpi = 600,width = 9, height = 6)
 
 # Degree Days 3
 DD3 <- ggplot(data=data, aes(x=commodity_year, y=DD3,group = commodity_year)) +
-  geom_boxplot(color="blue",outlier.size=0.5) +
+  geom_boxplot(color="#00583D",outlier.size=0.5) +
   labs(title=paste0("(d) Degree-day (above ",Tmax,"°C)"),
        x="\nYear",
        y ="inches\n",
@@ -257,7 +258,7 @@ ggsave("output/exhibits/DD3.png", DD3, dpi = 600,width = 9, height = 6)
 
 # Precipitation
 ppt <- ggplot(data=data, aes(x=commodity_year, y=ppt,group = commodity_year)) +
-  geom_boxplot(color="blue",outlier.size=0.5) +
+  geom_boxplot(color="#00583D",outlier.size=0.5) +
   labs(title="(e) Precipitation (inches)",
        x="\nYear",
        y ="inches\n",
@@ -280,7 +281,7 @@ ggsave("output/exhibits/ppt.png", ppt, dpi = 600,width = 9, height = 6)
 
 # Yield
 yield <- ggplot(data=data[data$yield<15,], aes(x=commodity_year, y=yield,group = commodity_year)) +
-  geom_boxplot(color="blue",outlier.size=0.5) +
+  geom_boxplot(color="#00583D",outlier.size=0.5) +
   labs(title="(a) Yield (tons/acre)",
        x="\nYear", y ="inches\n",
        caption = "") +
@@ -422,14 +423,14 @@ co$series <- factor(co$series, levels = c(byz$cluster_label, "Full sample"))
 write.csv(co, "output/exhibits/figure_data/cluster_knot_outcomes.csv", row.names = FALSE)
 
 # consistent palette: clusters + a neutral grey full sample (shared by map and bars)
-base_cols <- c("#2a78d6","#eb6834","#008300","#4a3aa7","#1baf7a","#eda100","#e34948","#c05780")
+base_cols <- c("#00583D","#FFC425","#B83E27","#51ABA0","#BE5E27","#BED73B","#9DD9F7","#A0BD78")  # NDSU categorical
 pal     <- setNames(c(base_cols[seq_len(nrow(byz))], "#8a8a86"), levels(co$series))
 map_pal <- setNames(base_cols[seq_len(nrow(byz))], as.character(byz$cluster))
 
 # coloured symbol chips (ggtext markdown) that tie each panel to the equation:
 # blue for model variables / knots, rust for the estimated coefficients (betas).
-chipv <- function(s) paste0("<span style='color:#173a72'>**[", s, "]**</span> ")
-chipb <- function(s) paste0("<span style='color:#7a3413'>**[", s, "]**</span> ")
+chipv <- function(s) paste0("<span style='color:#00583D'>**[", s, "]**</span> ")
+chipb <- function(s) paste0("<span style='color:#B83E27'>**[", s, "]**</span> ")
 
 mk <- function(col, title, dp, chip = ""){
   d <- co; d$val <- d[[col]]; d$vj <- ifelse(d$val >= 0, -0.35, 1.25)
@@ -463,8 +464,8 @@ p_r2    <- mk("R",        "Within-county fit (R^2)", 2, chipv("R<sup>2</sup>"))
 
 # equation panel occupies the top-left corner (the sequence starts to its right)
 eq_md <- paste0(
-  "<span style='color:#173a72;font-size:9pt'>**Estimated model &#183; county FE (within)**</span><br><br>",
-  "<span style='font-size:10.5pt'>ln&#8202;y<sub>it</sub> = &beta;<sub>1</sub>DD1 + &beta;<sub>2</sub>DD2 + &beta;<sub>3</sub>DD3 + ",
+  "<span style='color:#00583D;font-size:8pt'>**Estimated model &#183; county FE (within)**</span><br><br>",
+  "<span style='font-size:8pt'>ln&#8202;y<sub>it</sub> = &beta;<sub>1</sub>DD1 + &beta;<sub>2</sub>DD2 + &beta;<sub>3</sub>DD3 + ",
   "&gamma;<sub>1</sub>ppt + &gamma;<sub>2</sub>ppt<sup>2</sup> + state trends + &alpha;<sub>i</sub> + &epsilon;<sub>it</sub></span><br><br>",
   "<span style='font-size:7.5pt;color:#5a5a5a'>DD1 = max(0, D<sub>0</sub> &#8722; D<sub>Tmin</sub>)<br>",
   "DD2 = max(0, D<sub>Tmin</sub> &#8722; D<sub>Tmax</sub>)<br>",
@@ -474,7 +475,7 @@ p_eqn <- ggplot(data.frame(x = 0, y = 0.5, label = eq_md)) +
   ggtext::geom_textbox(aes(x, y, label = label),
                        width = unit(0.98, "npc"), height = unit(0.96, "npc"),
                        hjust = 0, vjust = 0.5, halign = 0, valign = 0.5, size = 2.8,
-                       box.colour = "#173a72", fill = "#f4f7fd", box.r = unit(2, "pt"),
+                       box.colour = "#00583D", fill = "#D7E5C8", box.r = unit(2, "pt"),
                        box.padding = unit(c(4, 5, 4, 5), "pt")) +
   scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
   scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
@@ -503,7 +504,7 @@ key_df <- data.frame(y = rev(seq_along(levels(co$series))), lab = levels(co$seri
 key_df$lab <- factor(key_df$lab, levels = levels(co$series))
 gkey <- ggplot(key_df, aes(0, y, fill = lab)) +
   geom_point(shape = 22, size = 4.4, colour = "grey30", stroke = 0.3) +
-  geom_text(aes(x = 0.30, label = lab), hjust = 0, size = 3.7, colour = "grey15") +
+  geom_text(aes(x = 0.30, label = lab), hjust = 0, size = 2.7, colour = "grey15") +
   scale_fill_manual(values = pal, guide = "none") +
   scale_x_continuous(limits = c(-0.3, 3.4), expand = c(0, 0)) +
   scale_y_continuous(expand = expansion(mult = c(0.10, 0.24))) +
@@ -515,8 +516,8 @@ gkey <- ggplot(key_df, aes(0, y, fill = lab)) +
         plot.margin = margin(3, 4, 3, 4))
 # key inset lives in the empty band opened on the map's LEFT by the coord_sf xlim
 # extension above; nudge these four fractions if it overlaps the map on your CRS.
-gmap <- gmap + patchwork::inset_element(gkey, left = 0.0, bottom = 0.24,
-                                        right = 0.29, top = 0.80, align_to = "panel")
+gmap <- gmap + patchwork::inset_element(gkey, left = 0.0, bottom = 0.0,
+                                        right = 0.29, top = 0.40, align_to = "panel")
 
 # 5 columns x 4 rows; map spans the centre (rows 2-3, cols 2-4).
 # Clockwise from the top-left equation (see the layout comment at the top of this
@@ -566,8 +567,8 @@ Result$x <- Result$Temp
 Xlab <- unique(Result[c("x","Temp")])
 Xlab <- Xlab[Xlab$Temp %in% seq(1,45,5),]
 
-colors <- c("Step Function" = "#FF00FF", "95% confidence interval for **" = "thistle")
-colors[preferred_lab] <- "purple"
+colors <- c("Step Function" = "#B83E27", "95% confidence interval for **" = "#D7E5C8")
+colors[preferred_lab] <- "#00583D"
 
 
 # Label each window; the preferred window carries the "**" emphasis, the rest are plain.
@@ -587,7 +588,7 @@ fig.a <- ggplot(data=Result,aes(x=x, y=Piece,group=period)) +
   geom_line(data=Result[Result$period %in% preferred_period,],aes(x=x,y=Piece,color=preferred_lab),size = 0.8,linetype="solid")  +
   geom_line(data=Result[!Result$period %in% preferred_period,],aes(x=x,y=Piece,color=months),size = 0.8,linetype="aa",alpha=0.5)  +
   labs(title="",x = "", y = "log-yield (Mt/ha)\n",fill ="",color ="growing season weather\naggregation window", caption = "") +
-  scale_color_manual(values = c(colorRampPalette(c("yellow","darkgreen"))(length(unique(Result[!Result$period %in% preferred_period,"months"]))),"purple")) +
+  scale_color_manual(values = c(colorRampPalette(c("#FEF389","#003524"))(length(unique(Result[!Result$period %in% preferred_period,"months"]))),"#00583D")) +
   scale_fill_manual(values = colors) +
   scale_x_continuous(breaks=Xlab$x, labels=Xlab$Temp) +
   scale_y_continuous(breaks=seq(-0.20,0.20,0.005), labels=sprintf(seq(-0.20,0.20,0.005),fmt="%#.3f")) +
@@ -606,7 +607,7 @@ fig.a <- ggplot(data=Result,aes(x=x, y=Piece,group=period)) +
         strip.background = element_rect(fill = "white", colour = "black", size = 1))
 
 fig.b <- ggplot(Result[Result$period %in% preferred_period,]) +
-  geom_bar(aes(x=x, y=exp),stat="identity", color = "black", fill = "mediumpurple") +
+  geom_bar(aes(x=x, y=exp),stat="identity", color = "black", fill = "#51ABA0") +
   #geom_errorbar(aes(x=x,ymin = exp - exp_sd*1.96, ymax = exp + exp_sd*1.96),color = "red") +
   labs(title="",x = "\nTemperature (°C)", y = "",fill ="",color ="", caption = "") +
   scale_x_continuous(breaks=Xlab$x, labels=Xlab$Temp) +
@@ -694,9 +695,9 @@ data <- dplyr::inner_join(data,datay)
 data_text <- doBy::summaryBy(x~type,data=data,FUN=max,keep.names = T,na.rm=T)
 
 Fig04 <- ggplot(data,aes(x=x,y=est,group=1)) +
-  geom_hline(yintercept = 0,size = 0.2,color = "blue") +
-  geom_errorbar(aes(ymin = est - se*1.96, ymax = est + se*1.96),color="purple") +
-  geom_point(color="purple") +
+  geom_hline(yintercept = 0,size = 0.2,color = "#0F374B") +
+  geom_errorbar(aes(ymin = est - se*1.96, ymax = est + se*1.96),color="#00583D") +
+  geom_point(color="#00583D") +
   geom_text(data=data_text,aes(x=x+1.5,y=-13,label=type, hjust = 0), size = 2.5, col = "black",
             stat = "identity",check_overlap = TRUE) +
   scale_y_continuous(breaks=seq(-60,0,2.5),labels=format(round(seq(-60,0,2.5),2), nsmall = 2)) +
@@ -711,6 +712,9 @@ Fig04 <- ggplot(data,aes(x=x,y=est,group=1)) +
 write.csv(data,"output/exhibits/figure_data/impacts_mean.csv")
 ggsave("output/exhibits/impacts_mean.png", Fig04, dpi = 600,width = 6.7, height = 7.5)
 #ggsave("output/exhibits/impacts_mean.png", Fig04, dpi = 600,width = 7, height = 6)
+# stash the national mean-impacts ggplot so the "County-level impacts" section (which
+# rm()s the workspace) can combine it with the yield county map.
+saveRDS(Fig04, "output/exhibits/figure_data/impacts_mean_ggobj.rds")
 
 #-------------------------------
 # Regional estimates         ####
@@ -822,10 +826,10 @@ sf_object$panel <- factor(sf_object$name,
              "(c) Neighbouring (spatial-lag) production"))
 
 Fig06 <- ggplot() +
-  geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "darkred",size = 0.2) +
+  geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "grey85",size = 0.2) +
   geom_sf(data = sf_object,aes(fill = Value), colour = NA,size = 0.2) +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.2) +
-  scale_fill_manual(drop=FALSE, values=colorRampPalette(c("yellow","darkgreen"))(nlevels(sf_object$Value)), na.value="#EEEEEE",
+  scale_fill_manual(drop=FALSE, values=colorRampPalette(c("#FEF389","#003524"))(nlevels(sf_object$Value)), na.value="#EEEEEE",
                     name="Elasticity\n(within-panel\nsextile, low -> high)") +
   labs(title = "Responsiveness of cattle inventory to alfalfa supply",
        x = "", y = "",
@@ -876,7 +880,7 @@ sf_object <- sf_object[!is.na(sf_object$Value), ]
 Fig_avail <- ggplot() +
   geom_sf(data = sf_object,aes(fill = Value), colour = NA,size = 0.2) +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA,size = 0.2) +
-  scale_fill_manual(drop=FALSE, values=c(colorRampPalette(c("yellow","darkgreen"))(length(unique(as.character(sf_object$Value))))), na.value="#EEEEEE",
+  scale_fill_manual(drop=FALSE, values=c(colorRampPalette(c("#FEF389","#003524"))(length(unique(as.character(sf_object$Value))))), na.value="#EEEEEE",
                     name="1,000 tons") +
   labs(title= "(a) Alfalfa availability", x = "", y = "",fill ="", fill='',caption = "") +
   guides(fill = guide_legend(ncol=2,override.aes = list(size=1))) +
@@ -924,7 +928,7 @@ Fig_div <- ggplot() +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "grey95", size = 0.2) +
   geom_sf(data = sf_div, aes(fill = consensus), colour = NA, size = 0.2) +
   geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA, size = 0.2) +
-  scale_fill_gradient2(low = "#B2182B", mid = "#F7F7F7", high = "#2166AC",
+  scale_fill_gradient2(low = "#B83E27", mid = "#F4F4EF", high = "#00583D",
                        midpoint = 0, limits = c(-lim_div, lim_div), oob = scales::squish,
                        name = "Consensus\ncoefficient") +
   labs(title = "Responsiveness of cattle inventory to alfalfa availability",
@@ -950,7 +954,7 @@ sf_object$Value <- factor(
          as.character(cut(sf_object$consensus, breaks = qb, include.lowest = TRUE, dig.lab = 4))),
   levels = c("< 0", pos_lab))
 sf_object <- sf_object[!is.na(sf_object$Value), ]
-corr_pal <- stats::setNames(c("#4575B4", colorRampPalette(c("#FFEBCD","#800000"))(length(pos_lab))),
+corr_pal <- stats::setNames(c("#B83E27", colorRampPalette(c("#D7E5C8","#003524"))(length(pos_lab))),
                             c("< 0", pos_lab))
 
 Fig_corr <- ggplot() +
@@ -1025,35 +1029,55 @@ impacts$SimCat <- factor(impacts$warming_scenario, levels = .scen,
                          labels = paste0("+", format(.scen, nsmall = 1), " °C"))
 write.csv(impacts, "output/exhibits/figure_data/predicted_impacts_consensus.csv", row.names = FALSE)
 
-# One standalone map PER OUTCOME (yield / availability / cattle), each faceted by
-# warming scenario, on a continuous diverging scale centred at 0. Each figure gets
-# its OWN symmetric 98%-clip limit (outcomes differ in magnitude). These three files
-# replace the stacked predicted_county_impacts.png and the quantile-binned
-# spatial_impact_yield.png.
-outcome_fig <- function(outcome, file){
-  d   <- impacts[impacts$outcome %in% outcome & is.finite(impacts$est), ]
+# Build a THREE-ROW (ncol = 2, six warming scenarios) county map object per outcome, on a
+# continuous diverging scale centred at 0 with its OWN symmetric 98%-clip limit.
+#   - availability & cattle: saved as standalone three-row maps.
+#   - yield: combined side-by-side with the national mean-impacts panel (from the
+#     "Impacts mean" section) into predicted_mean_and_county_impacts_yield.png.
+outcome_map <- function(outcome_key, title, legend_pos = "right"){
+  d   <- impacts[impacts$outcome %in% outcome_key & is.finite(impacts$est), ]
   lim <- stats::quantile(abs(d$est), 0.98, na.rm = TRUE)
   sfo <- sf::st_as_sf(terra::merge(Counties, d, by = "fip"))
   sfo <- sfo[is.finite(sfo$est), ]
-  fig <- ggplot() +
+  # horizontal colourbar when the legend sits on top; slim vertical bar otherwise
+  cbar <- if (identical(legend_pos, "top"))
+    guide_colourbar(direction = "horizontal", title.position = "left", title.vjust = 0.85,
+                    barwidth = grid::unit(5, "cm"), barheight = grid::unit(0.3, "cm"))
+  else guide_colourbar(barwidth = grid::unit(0.35, "cm"))
+  ggplot() +
     geom_sf(data = sf::st_as_sf(States), colour = "black", fill = "grey85", size = 0.1) +
     geom_sf(data = sfo, aes(fill = est), colour = NA, size = 0.2) +
     geom_sf(data = sf::st_as_sf(States), colour = "black", fill = NA, size = 0.1) +
-    scale_fill_gradient2(low = "#B2182B", mid = "#F7F7F7", high = "#2166AC", midpoint = 0,
-                         limits = c(-lim, lim), oob = scales::squish, name = "% impact") +
-    labs(title = outcome, x = "", y = "", caption = "") +
-    facet_wrap(vars(SimCat), ncol = 3) +
+    scale_fill_gradient2(low = "#B83E27", mid = "#F4F4EF", high = "#00583D", midpoint = 0,
+                         limits = c(-lim, lim), oob = scales::squish, name = "% impact",
+                         guide = cbar) +
+    labs(title = title, x = "", y = "", caption = "") +
+    facet_wrap(vars(SimCat), ncol = 2) +                       # six scenarios -> THREE ROWS
     ers_theme() + theme_bw() +
     theme(panel.grid = element_blank(), axis.ticks = element_blank(),
-          plot.title = element_text(size = 11), legend.position = "right",
-          legend.key.width = unit(0.35, "cm"), legend.text = element_text(size = 7),
+          plot.title = element_text(size = 11),
+          legend.position = legend_pos, legend.text = element_text(size = 7),
+          legend.title = element_text(size = 8),
           axis.text = element_blank(), strip.text = element_text(size = 9),
           strip.background = element_blank()) + coord_sf()
-  ggsave(file, fig, dpi = 600, width = 11, height = 7)
 }
-outcome_fig("(a) Alfalfa yield",        "output/exhibits/predicted_county_impacts_yield.png")
-outcome_fig("(b) Alfalfa availability", "output/exhibits/predicted_county_impacts_availability.png")
-outcome_fig("(c) Cattle inventory",     "output/exhibits/predicted_county_impacts_cattle.png")
+
+# availability + cattle: standalone three-row maps (legend on TOP)
+ggsave("output/exhibits/predicted_county_impacts_availability.png",
+       outcome_map("(b) Alfalfa availability", "Alfalfa availability", legend_pos = "top"), dpi = 600, width = 8, height = 10)
+ggsave("output/exhibits/predicted_county_impacts_cattle.png",
+       outcome_map("(c) Cattle inventory", "Cattle inventory", legend_pos = "top"),        dpi = 600, width = 8, height = 10)
+
+# yield: national mean-impacts panel (a, titled) + three-row county map (b); the map's legend
+# sits on TOP, so the map gets the wider share (the colourbar no longer eats the right margin).
+mean_panel  <- readRDS("output/exhibits/figure_data/impacts_mean_ggobj.rds") +
+  labs(title = "National mean yield impact")
+yield_combo <- cowplot::plot_grid(
+  mean_panel,
+  outcome_map("(a) Alfalfa yield", "County-level yield impact", legend_pos = "top"),
+  ncol = 2, rel_widths = c(0.82, 1.18), labels = c("(a)", "(b)"), label_size = 12)
+ggsave("output/exhibits/predicted_mean_and_county_impacts_yield.png",
+       yield_combo, dpi = 600, width = 13, height = 8.5)
 
 #-------------------------------
 # Predicted impacts          ####
@@ -1133,8 +1157,8 @@ data_text$outcome <- "(a) Alfalfa yield"
 
 Fig04 <- ggplot(data,aes(x=x,y=est,group=1)) +
   geom_hline(yintercept = 0,size = 0.2,color = "black") +
-  geom_errorbar(aes(ymin = est - se*1.96, ymax = est + se*1.96),color="purple") +
-  geom_point(color="purple") +
+  geom_errorbar(aes(ymin = est - se*1.96, ymax = est + se*1.96),color="#00583D") +
+  geom_point(color="#00583D") +
   geom_text(data=data_text,aes(x=x+1.5,y=.ylab,label=type, hjust = 0), size = 2.5, col = "black",
             stat = "identity",check_overlap = TRUE) +
   facet_wrap(~outcome, nrow = 1, scales = "free") +

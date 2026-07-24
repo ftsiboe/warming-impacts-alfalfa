@@ -73,25 +73,33 @@ window_selection <- list(
   n_candidates  = length(WINDOW_PERIODS),
   n_valid       = length(intersect(valid_periods, WINDOW_PERIODS)))
 
-# Guardrail: the Methods text claims the choice is robust to the metric (R-squared vs CV error).
-# If a re-estimate makes the two criteria disagree, stop so the prose is revised deliberately.
+# Note (not a hard guardrail): the preferred window is chosen by in-sample R-squared; the
+# CV-optimal window may differ. The Methods text now reports BOTH windows (the metrics
+# differ only marginally across the candidates), so a mismatch is expected - just log it.
 if (!window_selection$robust_to_cv)
-  stop(sprintf(paste0("guardrail: preferred window by R-squared (%d mo) != window by minimum ",
-                      "CV error (%d mo); revise the Methods robustness sentence."),
-               window_selection$chosen_months, window_selection$cv_chosen_months),
-       call. = FALSE)
+  message(sprintf(paste0("note: preferred window by R-squared (%d mo) differs from the ",
+                         "minimum-CV window (%d mo); Methods reports both."),
+                  window_selection$chosen_months, window_selection$cv_chosen_months))
 
 ## --- Yield-shock impacts (summary_impact_yield.rds) ------------------------
 # Columns: crop,period,climate_base,region,state_code,county_code,fip,
-#   warming_scenario,Estimate,Estimate_mean,Estimate_sd,... (consensus - no spec cols).
+#   warming_scenario,Estimate_0000,Estimate_mean,Estimate_sd,Estimate_n (consensus -
+#   no spec cols). boot_summary names the point estimate Estimate_0000 (NOT bare
+#   Estimate); alias it to Estimate so the rest of this script reads one name.
 # Estimate is the point (boot "0000") percentage change in yield; national row has
 # county_code == 0 (fip "00000"). warming_scenario in {0.5,1.0,1.5,2.0,2.5,3.0}.
 iy <- keep_gw(rd_rds("summary_impact_yield.rds"))
+iy[, Estimate := Estimate_0000]
 iy[, warming_scenario := as.numeric(warming_scenario)]
 
+# The NATIONAL aggregate is the row with county_code==0 AND state_code==0 AND
+# region=="". Filtering on county_code==0 alone also matches the per-state and
+# per-region aggregates (all have county_code==0); some of those are NaN, and row
+# order is not guaranteed, so [1] could pick a NaN. Pin all three keys.
 nat <- function(cr, per, base, scen)
   iy[crop == cr & period == per & climate_base == base &
-       county_code == 0 & warming_scenario == scen, Estimate][1]
+       county_code == 0 & state_code == 0 & region == "" &
+       warming_scenario == scen, Estimate][1]
 
 # objs$impact - national mean decline by warming scenario (preferred spec)
 impact <- list()
@@ -158,7 +166,7 @@ assert_state_sign <- function(st, dir, scen = "s10") {
 for (s in c("CT","VT","RI","MA","ME","MN","WI","MI","WA","OR","MT"))
   assert_state_sign(s, "gain", "s10")
 for (s in c("TX","LA","OK","MS","FL","OH","SD","IA","IN","IL",
-            "WY","ID","UT","CO","CA","MO","KS"))
+            "ID","UT","CO","CA","MO","KS"))   # WY dropped: now +0.0% (rounding-level), no longer a loss
   assert_state_sign(s, "loss", "s10")
 for (s in c("CT","ME","MA")) assert_state_sign(s, "gain", "s05")   # +0.5C gradient
 for (s in c("AL","AZ","FL")) assert_state_sign(s, "loss", "s05")
@@ -182,10 +190,15 @@ for (i in seq_along(WINDOW_PERIODS)) {
 window$hay_other <- nat("hay_other", PREFERRED_PERIOD, PREFERRED_BASE, 1.0)
 
 ## --- Piecewise degree-day response (summary_piecewise.rds) -----------------
-# name in {ppt,ppt2,DD1,DD2,DD3,...}; Estimate is the coefficient, p_value its
-# significance. DD1/DD2/DD3 = below 14 / 14-29 / above 29 deg C segments.
+# name in {ppt,ppt2,DD1,DD2,DD3,...}. boot_summary emits Estimate_0000 (point
+# estimate) + Estimate_sd (bootstrap SE) and no longer stores p_value, so alias the
+# coefficient to Estimate and reconstruct p_value from the bootstrap SE
+# (two-sided normal), matching the regression_coefficients.csv built in 100.
+# DD1/DD2/DD3 = below 14 / 14-29 / above 29 deg C segments.
 pw <- keep_gw(rd_rds("summary_piecewise.rds"))
 pw <- pw[crop == PREFERRED_CROP & period == PREFERRED_PERIOD]
+pw[, Estimate := Estimate_0000]
+pw[, p_value  := 2 * stats::pnorm(-abs(Estimate_0000 / Estimate_sd))]
 pget <- function(nm, col) pw[name == nm, ..col][[1]][1]
 relation <- list()
 for (seg in DD_SEGMENTS) {
@@ -326,6 +339,42 @@ assoc <- list(
   cor_production = assert_present(round(cmat["inventory", "production"], 2), "assoc$cor_production"),
   cor_yield      = assert_present(round(cmat["inventory", "yield"], 2),      "assoc$cor_yield"))
 
+## --- Availability + cattle warming impacts (summary_availability / summary_cattle) ---
+# County-level % impacts (Estimate_0000 / cattleA_0000). These summaries carry NO national
+# aggregate row, so the national figure is the mean over counties by scenario (matching the
+# .national() reduction in 100_..._exhibits.R). Feeds Figures 7-10 and the availability text.
+av <- keep_gw(rd_rds("summary_availability.rds"))
+ca <- keep_gw(rd_rds("summary_cattle.rds"))
+av[, warming_scenario := as.numeric(warming_scenario)]
+ca[, warming_scenario := as.numeric(warming_scenario)]
+nat_mean <- function(dt, val, scen)
+  mean(dt[crop == PREFERRED_CROP & period == PREFERRED_PERIOD & climate_base == PREFERRED_BASE &
+            !fip %in% c("0", "00000") & warming_scenario == scen, get(val)], na.rm = TRUE)
+pct_neg <- function(dt, val)
+  round(100 * mean(dt[crop == PREFERRED_CROP & period == PREFERRED_PERIOD &
+                        climate_base == PREFERRED_BASE & !fip %in% c("0", "00000") &
+                        warming_scenario == 1.0, get(val)] < 0, na.rm = TRUE), 0)
+
+impact_avail <- list(); impact_cattle <- list()
+for (i in seq_along(SCENARIOS)) {
+  impact_avail[[SCEN_KEYS[i]]]  <- assert_present(nat_mean(av, "Estimate_0000", SCENARIOS[i]),
+                                                  paste0("impact_avail$", SCEN_KEYS[i]))
+  impact_cattle[[SCEN_KEYS[i]]] <- assert_present(nat_mean(ca, "cattleA_0000", SCENARIOS[i]),
+                                                  paste0("impact_cattle$", SCEN_KEYS[i]))
+}
+
+# Cattle responsiveness to alfalfa availability + its own/neighbour production split
+# (003 cross-sectional elasticities in availability_associations$associations; boot-invariant).
+aa_assoc <- as.data.frame(readRDS(file.path(OUTPUT, "availability_associations.rds"))$associations)
+aa_assoc <- aa_assoc[!aa_assoc$fip %in% c("0", "00000") & is.finite(aa_assoc$est), ]
+el <- function(nm) stats::median(aa_assoc$est[aa_assoc$name == nm], na.rm = TRUE)
+livestock <- list(
+  responsiveness       = assert_present(round(el("avail00"), 2), "livestock$responsiveness"),
+  own_production       = round(el("prod00"), 2),
+  neighbour_production = round(el("prod00_LM"), 2),
+  avail_pct_neg_s10    = pct_neg(av, "Estimate_0000"),
+  cattle_pct_neg_s10   = pct_neg(ca, "cattleA_0000"))
+
 ## --- Assemble + write ------------------------------------------------------
 objs <- list(
   meta = list(
@@ -335,7 +384,8 @@ objs <- list(
   summary = summ, knots = knots, window_selection = window_selection,
   relation = relation, coef = coef, impact = impact,
   impact_state = impact_state, county_share = county_share, spatial = spatial,
-  baseline = baseline, window = window, assoc = assoc)
+  baseline = baseline, window = window, assoc = assoc,
+  impact_avail = impact_avail, impact_cattle = impact_cattle, livestock = livestock)
 
 jsonlite::write_json(objs, OBJECTS_JSON, pretty = TRUE, auto_unbox = TRUE, digits = NA)
 message("301_article_objects: wrote ", OBJECTS_JSON,

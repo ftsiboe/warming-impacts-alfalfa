@@ -23,22 +23,38 @@ knitr::kable(objs$coef$tab, row.names = FALSE)
 
 ## Figures
 
-**Figure 1. Distribution of Regression Variables**
+**Figure 1. Alfalfa and Cattle Producing Areas in the U.S. (2002-2022)**
 
-![Figure 1](../output/exhibits/regression_variables.png)
+![Figure 1](../output/exhibits/spatial_Rep.png)
 
-**Figure 2. Alfalfa and Cattle Producing Areas in the U.S. (2002-2022)**
+**Figure 2. Decomposition of Cattle-Inventory Responsiveness into Own-County and Neighboring Production**
 
-![Figure 2](../output/exhibits/spatial_Rep.png)
+![Figure 2](../output/exhibits/associations.png)
 
-**Figure 3. Nonlinear Relation Between Temperature and U.S. Alfalfa Yields (1951-2022)**
+**Figure 3. Baseline Alfalfa Availability and the Responsiveness of Cattle Inventory to Availability**
 
-![Figure 3](../output/exhibits/Nonlinear_Relation.png)
+![Figure 3](../output/exhibits/availability_cattle.png)
 
-**Figure 4. Predicted Impacts**
+**Figure 4. Distribution of Regression Variables**
 
-![Figure 4](../output/exhibits/impacts_mean.png)
+![Figure 4](../output/exhibits/regression_variables.png)
 
-**Figure 5. Predicted County Level Impacts**
+**Figure 5. Nonlinear Relation Between Temperature and U.S. Alfalfa Yields (1951-2022)**
 
-![Figure 5](../output/exhibits/spatial_impact_yield.png)
+![Figure 5](../output/exhibits/Nonlinear_Relation.png)
+
+**Figure 6. Agro-Climatic Clusters: Estimated Temperature Thresholds and Degree-Day Responses**
+
+![Figure 6](../output/exhibits/cluster_knot_outcomes.png)
+
+**Figure 7. Predicted Alfalfa Yield Impacts: National Means and County-Level Detail**
+
+![Figure 7](../output/exhibits/predicted_mean_and_county_impacts_yield.png)
+
+**Figure 8. Predicted County-Level Alfalfa Availability Impacts by Warming Scenario**
+
+![Figure 8](../output/exhibits/predicted_county_impacts_availability.png)
+
+**Figure 9. Predicted County-Level Cattle Inventory Impacts by Warming Scenario**
+
+![Figure 9](../output/exhibits/predicted_county_impacts_cattle.png)
